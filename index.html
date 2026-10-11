@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Lumina Reader</title>
+  
+  <!-- iOS PWA Meta Tags -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Lumina">
+  
+  <!-- CDN Scripts: Tailwind, React, Lucide Icons, Babel -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  
+  <style>
+    /* Prevent iOS bounce & pull-to-refresh */
+    html, body {
+      overscroll-behavior-y: none;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    .allow-select {
+      user-select: text;
+      -webkit-user-select: text;
+    }
+  </style>
+</head>
+<body class="bg-[#fbf0d9] overflow-hidden">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+
+    const THEMES = {
+      white: { id: 'white', name: 'Paper White', bg: '#ffffff', text: '#1a1a1a', accent: '#2563eb', navBg: 'rgba(255, 255, 255, 0.95)', border: '#e5e7eb' },
+      sepia: { id: 'sepia', name: 'Warm Sepia', bg: '#fbf0d9', text: '#5f4b32', accent: '#b45309', navBg: 'rgba(251, 240, 217, 0.95)', border: '#eedbc2' },
+      mint: { id: 'mint', name: 'Eye-Care Mint', bg: '#e8f5e9', text: '#1b4332', accent: '#2d6a4f', navBg: 'rgba(232, 245, 233, 0.95)', border: '#c8e6c9' },
+      slate: { id: 'slate', name: 'Slate Gray', bg: '#27272a', text: '#d4d4d8', accent: '#38bdf8', navBg: 'rgba(39, 39, 42, 0.95)', border: '#3f3f46' },
+      oled: { id: 'oled', name: 'OLED Pure Black', bg: '#000000', text: '#9ca3af', accent: '#3b82f6', navBg: 'rgba(0, 0, 0, 0.98)', border: '#1f2937' }
+    };
+
+    const SAMPLE_CHAPTERS = [
+      {
+        id: 1,
+        title: "Chapter 1: The Outskirts of the Forgotten Shore",
+        content: `The pale sun drifted weakly over the jagged horizon. Sunny stared down at the dark, turbulent waters with a grim expression. Survival here was never guaranteed—it was fought for with blood and relentless caution.\n\nHe pulled his threadbare cloak tighter against the biting chill. The shadow stretching out from beneath his boots stirred with a quiet, sentient tremor, mirroring his suppressed vigilance. Every breath felt heavy, burdened by the weight of unspoken dread.\n\n"You are thinking too loudly again," he whispered into the solitude. Only the bitter sea breeze answered, sweeping across the barren rocks with a hollow wail.`
+      },
+      {
+        id: 2,
+        title: "Chapter 2: The Whispering Labyrinth",
+        content: `The ruins rose from the mist like shattered obsidian bones. Ancient runes covered every column, glowing faintly with lingering essence from a forgotten age.\n\nStep by step, he navigated the narrow pathway. A low hum resonated through the stone floor beneath his feet. The labyrinth was alive, shifting in imperceptible cycles to trap wandering souls in its eternal maze.`
+      }
+    ];
+
+    function App() {
+      const [currentView, setCurrentView] = useState('reader');
+      const [theme, setTheme] = useState(THEMES.sepia);
+      const [isMenuOpen, setIsMenuOpen] = useState(false);
+      const [isUiVisible, setIsUiVisible] = useState(false);
+      
+      const [fontSize, setFontSize] = useState(19);
+      const [lineHeight, setLineHeight] = useState(1.8);
+      const [marginWidth, setMarginWidth] = useState(24);
+      const [isTwoPage, setIsTwoPage] = useState(false);
+      const [isScrollMode, setIsScrollMode] = useState(false);
+      const [autoScrollSpeed, setAutoScrollSpeed] = useState(0);
+
+      const [currentChapterIndex, setCurrentChapterIndex] = useState(0);
+      const [currentPage, setCurrentPage] = useState(1);
+      const [totalPages, setTotalPages] = useState(14);
+      const [folders] = useState(['All Books', 'Web Novels', 'Medical Textbooks']);
+      const [selectedFolder, setSelectedFolder] = useState('All Books');
+
+      const scrollRef = useRef(null);
+
+      // Auto-scroll logic
+      useEffect(() => {
+        if (!isScrollMode || autoScrollSpeed === 0) return;
+        const interval = setInterval(() => {
+          if (scrollRef.current) {
+            scrollRef.current.scrollTop += autoScrollSpeed;
+          }
+        }, 30);
+        return () => clearInterval(interval);
+      }, [isScrollMode, autoScrollSpeed]);
+
+      const currentChapter = SAMPLE_CHAPTERS[currentChapterIndex];
+
+      return (
+        <div 
+          className="relative w-screen h-screen overflow-hidden transition-colors duration-300"
+          style={{ backgroundColor: theme.bg, color: theme.text }}
+        >
+          {/* Top Bar */}
+          <header 
+            className={`fixed top-0 left-0 right-0 z-40 flex items-center justify-between px-6 pt-10 pb-4 backdrop-blur-md transition-all duration-300 ${
+              isUiVisible ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-full pointer-events-none'
+            }`}
+            style={{ backgroundColor: theme.navBg, borderBottom: `1px solid ${theme.border}` }}
+          >
+            <button 
+              onClick={() => setCurrentView(currentView === 'reader' ? 'library' : 'reader')}
+              className="px-3 py-1.5 rounded-full text-xs font-semibold tracking-wide border transition active:scale-95"
+              style={{ borderColor: theme.border }}
+            >
+              {currentView === 'reader' ? '← Library' : '← Back'}
+            </button>
+
+            <div className="text-xs font-medium tracking-wide opacity-75 truncate max-w-[200px]">
+              {currentChapter.title}
+            </div>
+
+            <button 
+              onClick={() => setIsMenuOpen(true)}
+              className="px-3 py-1.5 rounded-full text-xs font-semibold tracking-wide border transition active:scale-95"
+              style={{ borderColor: theme.border }}
+            >
+              Aa / Menu
+            </button>
+          </header>
+
+          {/* Reader View */}
+          {currentView === 'reader' ? (
+            <main 
+              ref={scrollRef}
+              onClick={() => setIsUiVisible(!isUiVisible)}
+              className={`w-full h-full cursor-pointer overflow-y-auto px-6 sm:px-12 md:px-20 transition-all ${
+                isScrollMode ? 'pt-24 pb-28' : 'flex items-center justify-center'
+              }`}
+              style={{
+                maxWidth: `${100 - marginWidth * 0.4}%`,
+                margin: '0 auto',
+                fontSize: `${fontSize}px`,
+                lineHeight: lineHeight
+              }}
+            >
+              <div className={`w-full max-w-3xl allow-select ${isTwoPage ? 'grid grid-cols-2 gap-12' : ''}`}>
+                <div>
+                  <h1 className="text-xl font-bold mb-8 opacity-90">{currentChapter.title}</h1>
+                  {currentChapter.content.split('\n\n').map((paragraph, idx) => (
+                    <p key={idx} className="mb-6 indent-6 text-justify">
+                      {paragraph}
+                    </p>
+                  ))}
+                </div>
+
+                {isTwoPage && (
+                  <div className="border-l pl-12" style={{ borderColor: theme.border }}>
+                    <p className="text-justify indent-6">
+                      The path ahead remained shrouded in shadows. He stepped forward with unyielding resolve, knowing the trial had only just begun...
+                    </p>
+                  </div>
+                )}
+              </div>
+            </main>
+          ) : (
+            /* Library View */
+            <div className="w-full h-full overflow-y-auto pt-20 px-8 max-w-4xl mx-auto">
+              <h1 className="text-2xl font-bold mb-6">Library</h1>
+              <div className="flex gap-2 pb-4 overflow-x-auto border-b mb-6" style={{ borderColor: theme.border }}>
+                {folders.map(f => (
+                  <button 
+                    key={f}
+                    onClick={() => setSelectedFolder(f)}
+                    className={`px-4 py-1.5 rounded-full text-xs font-semibold transition ${
+                      selectedFolder === f ? 'bg-amber-600 text-white' : 'opacity-70'
+                    }`}
+                  >
+                    {f}
+                  </button>
+                ))}
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-6">
+                <div 
+                  onClick={() => setCurrentView('reader')}
+                  className="cursor-pointer aspect-[2/3] rounded-xl border p-4 flex flex-col justify-end shadow-md transition active:scale-95"
+                  style={{ backgroundColor: theme.border, borderColor: theme.border }}
+                >
+                  <span className="font-bold text-sm">Shadow Slave</span>
+                  <span className="text-xs opacity-75">Guiltythree</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Bottom Page Pill */}
+          {currentView === 'reader' && (
+            <div 
+              className={`fixed bottom-8 left-1/2 -translate-x-1/2 z-40 px-5 py-2 rounded-full shadow-lg backdrop-blur-md border text-xs font-semibold flex items-center gap-4 transition-all duration-300 ${
+                isUiVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6 pointer-events-none'
+              }`}
+              style={{ backgroundColor: theme.navBg, borderColor: theme.border }}
+            >
+              <button 
+                onClick={(e) => { e.stopPropagation(); setCurrentPage(p => Math.max(1, p - 1)); }}
+                className="px-1 active:opacity-50"
+              >
+                ◀
+              </button>
+              <span>Page {currentPage} / {totalPages}</span>
+              <button 
+                onClick={(e) => { e.stopPropagation(); setCurrentPage(p => Math.min(totalPages, p + 1)); }}
+                className="px-1 active:opacity-50"
+              >
+                ▶
+              </button>
+            </div>
+          )}
+
+          {/* Settings Drawer */}
+          {isMenuOpen && (
+            <div className="fixed inset-0 z-50 flex justify-end bg-black/40 backdrop-blur-sm">
+              <div 
+                className="w-full max-w-sm h-full p-6 overflow-y-auto shadow-2xl flex flex-col justify-between"
+                style={{ backgroundColor: theme.bg, color: theme.text, borderLeft: `1px solid ${theme.border}` }}
+              >
+                <div className="space-y-6">
+                  <div className="flex items-center justify-between pb-4 border-b" style={{ borderColor: theme.border }}>
+                    <h2 className="text-lg font-bold">Customization</h2>
+                    <button onClick={() => setIsMenuOpen(false)} className="text-xl font-bold px-2">✕</button>
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-bold uppercase opacity-60 mb-2 block">Themes</label>
+                    <div className="grid grid-cols-5 gap-2">
+                      {Object.values(THEMES).map(t => (
+                        <button
+                          key={t.id}
+                          onClick={() => setTheme(t)}
+                          className={`h-10 rounded-lg border transition ${theme.id === t.id ? 'ring-2 ring-amber-500 scale-105' : ''}`}
+                          style={{ backgroundColor: t.bg, borderColor: t.border }}
+                        />
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div className="flex justify-between text-xs font-semibold">
+                      <span>Font Size</span>
+                      <span>{fontSize}px</span>
+                    </div>
+                    <input 
+                      type="range" min="14" max="32" value={fontSize} 
+                      onChange={e => setFontSize(Number(e.target.value))}
+                      className="w-full accent-amber-600" 
+                    />
+                  </div>
+
+                  <div className="space-y-3">
+                    <div className="flex justify-between text-xs font-semibold">
+                      <span>Line Height</span>
+                      <span>{lineHeight}</span>
+                    </div>
+                    <input 
+                      type="range" min="1.3" max="2.4" step="0.1" value={lineHeight} 
+                      onChange={e => setLineHeight(Number(e.target.value))}
+                      className="w-full accent-amber-600" 
+                    />
+                  </div>
+
+                  <div className="space-y-3 pt-2">
+                    <label className="flex items-center justify-between cursor-pointer">
+                      <span className="text-sm font-medium">Continuous Scroll</span>
+                      <input 
+                        type="checkbox" checked={isScrollMode} 
+                        onChange={e => setIsScrollMode(e.target.checked)}
+                        className="w-5 h-5 accent-amber-600 rounded" 
+                      />
+                    </label>
+
+                    <label className="flex items-center justify-between cursor-pointer">
+                      <span className="text-sm font-medium">2-Page Spread (iPad)</span>
+                      <input 
+                        type="checkbox" checked={isTwoPage} 
+                        onChange={e => setIsTwoPage(e.target.checked)}
+                        className="w-5 h-5 accent-amber-600 rounded" 
+                      />
+                    </label>
+
+                    {isScrollMode && (
+                      <div className="pt-2">
+                        <div className="flex justify-between text-xs font-semibold mb-1">
+                          <span>Auto-Scroll Speed</span>
+                          <span>{autoScrollSpeed === 0 ? 'Off' : `${autoScrollSpeed}x`}</span>
+                        </div>
+                        <input 
+                          type="range" min="0" max="5" value={autoScrollSpeed} 
+                          onChange={e => setAutoScrollSpeed(Number(e.target.value))}
+                          className="w-full accent-amber-600" 
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <button 
+                  onClick={() => setIsMenuOpen(false)}
+                  className="w-full py-3 bg-amber-600 text-white font-bold rounded-xl active:scale-95 transition"
+                >
+                  Done
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>

@@ -9,6 +9,7 @@
 
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <!-- JSZip is required by epub.js -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/epubjs/dist/epub.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/localforage/1.10.0/localforage.min.js"></script>
@@ -16,6 +17,7 @@
 
     <style>
         :root {
+            /* iOS System Colors */
             --bg-primary: #F2F2F7;
             --bg-secondary: #FFFFFF;
             --text-primary: #000000;
@@ -23,44 +25,38 @@
             --accent: #007AFF;
         }
 
-        body, html {
+        body {
             font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
             background-color: var(--bg-primary);
             color: var(--text-primary);
-            overflow: hidden; /* Fixes bottom/horizontal scrollbars */
-            overscroll-behavior-y: none;
+            overflow: hidden; /* Prevent body scroll, manage scrolling inside containers */
+            overscroll-behavior-y: none; /* Prevent pull-to-refresh */
             -webkit-tap-highlight-color: transparent;
-            width: 100%;
-            height: 100%;
-            margin: 0;
-            padding: 0;
         }
 
-        /* Liquid Glass Textures */
-        .glass, .liquid-glass {
-            background: linear-gradient(135deg, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0.2));
-            backdrop-filter: blur(25px) saturate(180%);
-            -webkit-backdrop-filter: blur(25px) saturate(180%);
-            border-bottom: 1px solid rgba(255, 255, 255, 0.4);
-            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.05), inset 0 1px 2px rgba(255, 255, 255, 0.6);
+        /* Glassmorphism utilities */
+        .glass {
+            background: rgba(255, 255, 255, 0.75);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-bottom: 0.5px solid rgba(0, 0, 0, 0.1);
         }
         
-        .glass-dark, .liquid-glass-dark {
-            background: linear-gradient(135deg, rgba(30, 30, 30, 0.6), rgba(15, 15, 15, 0.4));
-            backdrop-filter: blur(30px) saturate(150%);
-            -webkit-backdrop-filter: blur(30px) saturate(150%);
-            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3), inset 0 1px 1px rgba(255, 255, 255, 0.1);
+        .glass-dark {
+            background: rgba(30, 30, 30, 0.85);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-bottom: 0.5px solid rgba(255, 255, 255, 0.1);
         }
 
         .glass-panel {
-            background: linear-gradient(135deg, rgba(255, 255, 255, 0.8), rgba(255, 255, 255, 0.6));
-            backdrop-filter: blur(35px) saturate(200%);
-            -webkit-backdrop-filter: blur(35px) saturate(200%);
-            border: 1px solid rgba(255, 255, 255, 0.5);
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1), inset 0 2px 4px rgba(255, 255, 255, 0.8);
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(25px);
+            -webkit-backdrop-filter: blur(25px);
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
         }
 
+        /* iOS-style range slider */
         input[type=range] {
             -webkit-appearance: none;
             width: 100%;
@@ -80,27 +76,23 @@
             width: 100%;
             height: 4px;
             cursor: pointer;
-            background: rgba(0,0,0,0.15);
+            background: #D1D1D6;
             border-radius: 2px;
         }
 
+        /* Book Cover Aspect Ratio */
         .book-cover {
             aspect-ratio: 2 / 3;
             box-shadow: -4px 0 12px rgba(0,0,0,0.05), 4px 8px 16px rgba(0,0,0,0.1);
             transition: transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
         }
-        .book-cover:active { transform: scale(0.96); }
-
-        /* Custom Context Menu */
-        .context-menu {
-            display: none;
-            position: absolute;
-            z-index: 100;
-            min-width: 160px;
+        .book-cover:active {
+            transform: scale(0.96);
         }
 
+        /* Segmented Control */
         .segmented-control {
-            background: rgba(0,0,0,0.05);
+            background: #E5E5EA;
             border-radius: 8px;
             padding: 2px;
             display: flex;
@@ -120,84 +112,122 @@
             box-shadow: 0 1px 3px rgba(0,0,0,0.1);
         }
 
+        /* Hide scrollbar for clean aesthetic */
         ::-webkit-scrollbar { display: none; }
-        .epub-container { width: 100%; height: 100%; overflow: hidden; }
+        
+        .epub-container {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+        }
 
+        /* Animations */
         .fade-in { animation: fadeIn 0.3s ease forwards; }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        
+        .slide-up { animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+
+        /* Reader Themes */
+        .theme-light { --reader-bg: #FFFFFF; --reader-text: #000000; }
+        .theme-sepia { --reader-bg: #FBF0D9; --reader-text: #5F4B32; }
+        .theme-dark { --reader-bg: #1C1C1E; --reader-text: #E5E5EA; }
+        .theme-oled { --reader-bg: #000000; --reader-text: #B0B0B0; }
     </style>
 </head>
-<body class="text-gray-900 select-none flex flex-col w-full h-full">
+<body class="text-gray-900 select-none">
 
-    <div id="app-view" class="flex flex-col h-full w-full absolute inset-0">
+    <div id="app-view" class="flex flex-col h-screen w-full">
         <!-- Top App Bar -->
-        <header class="liquid-glass pt-safe-top sticky top-0 z-20 flex justify-between items-center px-6 py-4">
+        <header class="glass pt-safe-top sticky top-0 z-20 flex justify-between items-center px-6 py-4">
             <h1 class="text-2xl font-bold tracking-tight text-gray-900" id="header-title">Library</h1>
             <div class="flex gap-4">
-                <button onclick="createNewFolder()" class="w-8 h-8 rounded-full bg-black/5 flex items-center justify-center text-gray-600 hover:bg-black/10 transition" title="New Folder">
-                    <i class="ph ph-folder-plus text-lg"></i>
+                <button class="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-gray-600 hover:bg-gray-300 transition">
+                    <i class="ph ph-magnifying-glass text-lg"></i>
+                </button>
+                <button class="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-gray-600 hover:bg-gray-300 transition">
+                    <i class="ph ph-user text-lg"></i>
                 </button>
             </div>
         </header>
 
         <!-- Main Content Area -->
-        <main class="flex-1 overflow-y-auto pb-24 px-6 pt-4 w-full" id="main-content">
+        <main class="flex-1 overflow-y-auto pb-24 px-6 pt-4" id="main-content">
             
             <!-- Library Tab -->
             <div id="tab-library" class="tab-content w-full h-full">
-                <!-- Breadcrumb -->
-                <div id="folder-path" class="text-sm font-medium text-blue-600 mb-4 cursor-pointer hidden" onclick="navigateToFolder(null)">
-                    <i class="ph ph-caret-left"></i> Back to Root
-                </div>
-                
                 <div id="library-grid" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
-                    <!-- Items injected here -->
+                    <!-- Books will be injected here -->
                 </div>
             </div>
 
             <!-- Upload Tab -->
             <div id="tab-upload" class="tab-content hidden w-full h-full flex flex-col items-center justify-center">
                 <div class="w-full max-w-md">
-                    <div id="drop-zone" class="border-2 border-dashed border-gray-300 rounded-3xl p-12 text-center bg-white/50 backdrop-blur-sm transition-colors duration-200 hover:border-blue-500">
+                    <div id="drop-zone" class="border-2 border-dashed border-gray-300 rounded-2xl p-12 text-center bg-white transition-colors duration-200 hover:border-blue-500 hover:bg-blue-50">
                         <i class="ph ph-books text-5xl text-gray-400 mb-4"></i>
                         <h3 class="text-xl font-semibold mb-2">Add to Library</h3>
-                        <p class="text-sm text-gray-500 mb-6">Drag and drop EPUB files</p>
+                        <p class="text-sm text-gray-500 mb-6">Drag and drop your EPUB files here, or tap to browse.</p>
                         <input type="file" id="file-input" accept=".epub" class="hidden">
-                        <button onclick="document.getElementById('file-input').click()" class="bg-blue-600 text-white font-medium py-3 px-6 rounded-2xl shadow-lg shadow-blue-500/30 hover:bg-blue-700 active:scale-95 transition-all">
+                        <button onclick="document.getElementById('file-input').click()" class="bg-blue-600 text-white font-medium py-3 px-6 rounded-xl shadow-md hover:bg-blue-700 active:scale-95 transition-all">
                             Browse Files
                         </button>
                     </div>
                 </div>
             </div>
 
-            <!-- Stats Tab (Apple Screen Time Style) -->
+            <!-- Stats Tab -->
             <div id="tab-stats" class="tab-content hidden w-full h-full pb-10">
                 <div class="max-w-4xl mx-auto space-y-6">
-                    
-                    <div class="bg-white rounded-3xl p-6 shadow-sm border border-gray-100">
-                        <h2 class="text-2xl font-bold mb-1">Daily Average</h2>
-                        <p class="text-gray-500 mb-6">1h 45m today</p>
-                        <div class="h-48 w-full">
-                            <canvas id="hourlyChart"></canvas>
+                    <!-- Top Widgets -->
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div class="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 flex items-center gap-4">
+                            <div class="w-12 h-12 rounded-full bg-orange-100 flex items-center justify-center text-orange-500">
+                                <i class="ph ph-fire text-2xl"></i>
+                            </div>
+                            <div>
+                                <p class="text-sm text-gray-500 font-medium">Reading Streak</p>
+                                <p class="text-2xl font-bold">42 Days</p>
+                            </div>
+                        </div>
+                        <div class="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 flex items-center gap-4">
+                            <div class="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center text-blue-500">
+                                <i class="ph ph-book-open text-2xl"></i>
+                            </div>
+                            <div>
+                                <p class="text-sm text-gray-500 font-medium">Books Finished</p>
+                                <p class="text-2xl font-bold">18</p>
+                            </div>
+                        </div>
+                        <div class="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 flex items-center gap-4">
+                            <div class="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center text-green-500">
+                                <i class="ph ph-clock text-2xl"></i>
+                            </div>
+                            <div>
+                                <p class="text-sm text-gray-500 font-medium">Hours Read</p>
+                                <p class="text-2xl font-bold">124h</p>
+                            </div>
                         </div>
                     </div>
 
-                    <div class="bg-white rounded-3xl p-6 shadow-sm border border-gray-100">
-                        <div class="flex justify-between items-center mb-6">
-                            <h2 class="text-xl font-bold">Past Year Reading</h2>
-                            <span class="text-sm text-gray-500 bg-gray-100 px-3 py-1 rounded-full">18 Books</span>
+                    <!-- Charts Area -->
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+                            <h3 class="text-lg font-semibold mb-4">Pages Read per Week</h3>
+                            <canvas id="barChart" class="w-full h-64"></canvas>
                         </div>
-                        <div class="h-64 w-full">
-                            <canvas id="yearlyChart"></canvas>
+                        <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+                            <h3 class="text-lg font-semibold mb-4">Library Distribution</h3>
+                            <div class="w-full flex justify-center h-64">
+                                <canvas id="doughnutChart"></canvas>
+                            </div>
                         </div>
                     </div>
-
                 </div>
             </div>
         </main>
 
-        <!-- Bottom Navigation -->
-        <nav class="liquid-glass fixed bottom-0 w-full pb-safe-bottom">
+        <nav class="glass fixed bottom-0 w-full pb-safe-bottom">
             <div class="flex justify-around items-center px-2 py-2 max-w-md mx-auto">
                 <button onclick="switchTab('library')" class="nav-btn flex flex-col items-center p-2 text-blue-600 transition-colors w-20">
                     <i class="ph-fill ph-books text-2xl mb-1"></i>
@@ -215,82 +245,94 @@
         </nav>
     </div>
 
-    <!-- Context Menu -->
-    <div id="context-menu" class="context-menu glass-panel rounded-xl shadow-2xl p-2 text-sm">
-        <button onclick="handleAction('rename')" class="w-full text-left px-3 py-2 hover:bg-black/5 rounded-lg flex items-center gap-2"><i class="ph ph-pencil-simple"></i> Rename</button>
-        <button onclick="handleAction('move')" class="w-full text-left px-3 py-2 hover:bg-black/5 rounded-lg flex items-center gap-2"><i class="ph ph-folder"></i> Move to Folder</button>
-        <button onclick="handleAction('share')" class="w-full text-left px-3 py-2 hover:bg-black/5 rounded-lg flex items-center gap-2"><i class="ph ph-share-network"></i> Share</button>
-        <hr class="my-1 border-gray-200">
-        <button onclick="handleAction('delete')" class="w-full text-left px-3 py-2 text-red-600 hover:bg-red-50 rounded-lg flex items-center gap-2"><i class="ph ph-trash"></i> Delete</button>
-    </div>
-
     <!-- Reader Overlay View -->
     <div id="reader-view" class="fixed inset-0 z-50 hidden bg-white theme-light flex flex-col transition-colors duration-300">
-        <div id="reader-header" class="liquid-glass absolute top-0 w-full z-10 flex items-center justify-between px-4 py-3 transform transition-transform duration-300">
+        
+        <!-- Reader Top Navbar -->
+        <div id="reader-header" class="glass absolute top-0 w-full z-10 flex items-center justify-between px-4 py-3 transform transition-transform duration-300">
             <button onclick="closeReader()" class="text-gray-600 flex items-center gap-1 active:opacity-50 px-2 py-1 reader-control-text">
-                <i class="ph ph-caret-left text-2xl"></i> <span class="text-lg">Back</span>
+                <i class="ph ph-caret-left text-2xl"></i>
+                <span class="text-lg">Back</span>
             </button>
-            <h2 id="reader-title" class="font-semibold text-sm truncate max-w-[50%] reader-control-text">Book Title</h2>
+            <h2 id="reader-title" class="font-semibold text-sm truncate max-w-[50%] reader-control-text text-gray-800">Book Title</h2>
             <button onclick="toggleSettings()" class="text-gray-600 p-2 active:opacity-50 reader-control-text">
                 <i class="ph ph-text-aa text-2xl"></i>
             </button>
         </div>
 
+        <!-- Render Target for epub.js -->
         <div id="viewer" class="epub-container flex-1 mt-0"></div>
 
-        <div id="reader-footer" class="liquid-glass absolute bottom-0 w-full z-10 px-6 py-4 pb-safe-bottom transform transition-transform duration-300 flex items-center gap-4">
+        <!-- Reader Bottom Progress Bar -->
+        <div id="reader-footer" class="glass absolute bottom-0 w-full z-10 px-6 py-4 pb-safe-bottom transform transition-transform duration-300 flex items-center gap-4">
             <span class="text-xs text-gray-500 w-10 text-right reader-control-text" id="progress-text">0%</span>
-            <input type="range" id="progress-slider" min="0" max="100" value="0" class="flex-1">
+            <input type="range" id="progress-slider" min="0" max="100" value="0" class="flex-1" disabled>
         </div>
 
-        <!-- Settings Popover -->
-        <div id="settings-menu" class="hidden absolute top-16 right-4 w-80 glass-panel rounded-3xl p-5 z-20 text-black shadow-2xl">
+        <!-- Settings Popover Menu -->
+        <div id="settings-menu" class="hidden absolute top-16 right-4 w-80 glass-panel rounded-2xl p-5 z-20 text-black shadow-2xl">
             <!-- Theme Selection -->
-            <div class="mb-5 flex gap-3 justify-between">
-                <button onclick="applySetting('theme', 'light')" class="w-10 h-10 rounded-full bg-white shadow flex items-center justify-center ring-2 ring-transparent ring-offset-2" id="btn-theme-light">Aa</button>
-                <button onclick="applySetting('theme', 'sepia')" class="w-10 h-10 rounded-full bg-[#FBF0D9] text-[#5F4B32] shadow flex items-center justify-center ring-2 ring-transparent ring-offset-2" id="btn-theme-sepia">Aa</button>
-                <button onclick="applySetting('theme', 'dark')" class="w-10 h-10 rounded-full bg-[#1C1C1E] text-white shadow flex items-center justify-center ring-2 ring-transparent ring-offset-2" id="btn-theme-dark">Aa</button>
-            </div>
-
-            <hr class="border-black/10 mb-4">
-
-            <!-- Font Setup (Custom Import Included) -->
-            <div class="flex items-center gap-4 mb-4">
-                <i class="ph ph-text-a-small text-xl opacity-50"></i>
-                <input type="range" min="12" max="36" value="18" onchange="applySetting('fontSize', this.value)">
-                <i class="ph ph-text-a-large text-2xl opacity-50"></i>
-            </div>
-
-            <div class="segmented-control mb-3">
-                <button class="segmented-btn active" onclick="applySetting('fontFamily', '-apple-system, sans-serif')" id="btn-font-sans">Sans</button>
-                <button class="segmented-btn font-serif" onclick="applySetting('fontFamily', 'Georgia, serif')" id="btn-font-serif">Serif</button>
-                <button class="segmented-btn" id="btn-font-custom" onclick="document.getElementById('font-input').click()">+ Font</button>
-                <input type="file" id="font-input" accept=".ttf,.woff,.woff2,.otf" class="hidden" onchange="importCustomFont(event)">
-            </div>
-            
-            <hr class="border-black/10 mb-4">
-
-            <!-- Layout -->
-            <div class="space-y-4 mb-4">
-                <div class="flex items-center gap-4">
-                    <i class="ph ph-arrows-in-line-horizontal opacity-50"></i>
-                    <input type="range" min="0" max="100" value="40" step="5" onchange="applySetting('margin', this.value)">
+            <div class="mb-5">
+                <div class="flex gap-3 justify-between">
+                    <button onclick="applySetting('theme', 'light')" class="w-10 h-10 rounded-full border border-gray-200 bg-white shadow-sm flex items-center justify-center focus:outline-none ring-2 ring-transparent ring-offset-2" id="btn-theme-light">Aa</button>
+                    <button onclick="applySetting('theme', 'sepia')" class="w-10 h-10 rounded-full border border-[#D5C3A5] bg-[#FBF0D9] shadow-sm flex items-center justify-center text-[#5F4B32] focus:outline-none ring-2 ring-transparent ring-offset-2" id="btn-theme-sepia">Aa</button>
+                    <button onclick="applySetting('theme', 'dark')" class="w-10 h-10 rounded-full border border-gray-700 bg-[#1C1C1E] shadow-sm flex items-center justify-center text-white focus:outline-none ring-2 ring-transparent ring-offset-2" id="btn-theme-dark">Aa</button>
+                    <button onclick="applySetting('theme', 'oled')" class="w-10 h-10 rounded-full border border-gray-800 bg-black shadow-sm flex items-center justify-center text-gray-300 focus:outline-none ring-2 ring-transparent ring-offset-2" id="btn-theme-oled">Aa</button>
                 </div>
+            </div>
+
+            <hr class="border-gray-200 mb-4">
+
+            <!-- Font Size -->
+            <div class="flex items-center gap-4 mb-4">
+                <i class="ph ph-text-a-small text-xl text-gray-500"></i>
+                <input type="range" id="setting-fontSize" min="12" max="36" value="18" step="1" onchange="applySetting('fontSize', this.value)">
+                <i class="ph ph-text-a-large text-2xl text-gray-500"></i>
+            </div>
+
+            <!-- Font Family -->
+            <div class="segmented-control mb-5">
+                <button class="segmented-btn active font-serif" onclick="applySetting('fontFamily', 'Georgia, serif')" id="btn-font-serif">Serif</button>
+                <button class="segmented-btn font-sans" onclick="applySetting('fontFamily', '-apple-system, sans-serif')" id="btn-font-sans">Sans</button>
+                <button class="segmented-btn font-mono" onclick="applySetting('fontFamily', 'monospace')" id="btn-font-mono">Mono</button>
+            </div>
+
+            <hr class="border-gray-200 mb-4">
+
+            <!-- Layout Controls (Margins & Spacing) -->
+            <div class="space-y-4 mb-5">
+                <div class="flex items-center gap-4">
+                    <i class="ph ph-arrows-in-line-horizontal text-xl text-gray-500" title="Margins"></i>
+                    <input type="range" id="setting-margin" min="0" max="100" value="40" step="5" onchange="applySetting('margin', this.value)">
+                    <i class="ph ph-arrows-out-line-horizontal text-xl text-gray-500"></i>
+                </div>
+                <div class="flex items-center gap-4">
+                    <i class="ph ph-list text-xl text-gray-500" title="Line Spacing"></i>
+                    <input type="range" id="setting-lineHeight" min="1.2" max="2.5" value="1.5" step="0.1" onchange="applySetting('lineHeight', this.value)">
+                    <i class="ph ph-list-dashes text-xl text-gray-500"></i>
+                </div>
+            </div>
+
+            <hr class="border-gray-200 mb-4">
+
+            <!-- Scroll vs Paginated Toggle -->
+            <div class="segmented-control">
+                <button class="segmented-btn active" onclick="applySetting('flow', 'paginated')" id="btn-flow-paginated">Paginated</button>
+                <button class="segmented-btn" onclick="applySetting('flow', 'scrolled')" id="btn-flow-scrolled">Vertical Scroll</button>
             </div>
         </div>
     </div>
 
-    <!-- Toast Notification -->
+    <!-- Custom Toast Notification -->
     <div id="toast-container" class="fixed top-10 left-1/2 transform -translate-x-1/2 z-[100] flex flex-col gap-2 pointer-events-none"></div>
 
+
     <script>
+        // State
         const AppState = {
             currentTab: 'library',
-            library: [], 
-            currentFolder: null, // null means root
-            contextMenuTarget: null,
-            customFontUrl: null,
-            customFontFamily: null
+            library: [], // Array of book metadata
+            mockDataLoaded: false
         };
 
         const ReaderSettings = {
@@ -302,304 +344,338 @@
             flow: 'paginated'
         };
 
+        // EPUB.js globals
         let currentBook = null;
         let rendition = null;
         let readerUIVisible = true;
 
-        const db = localforage.createInstance({ name: "LuminaReader", storeName: "books" });
+        // DB setup
+        const db = localforage.createInstance({
+            name: "LuminaReader",
+            storeName: "books"
+        });
 
+        // Initialize App
         async function init() {
             await loadLibrary();
+            if (AppState.library.length === 0 && !AppState.mockDataLoaded) {
+                await injectMockBooks();
+            }
             renderLibrary();
             initCharts();
             applyThemeClasses(ReaderSettings.theme);
         }
 
+        // Custom Toast (No alerts)
         function showToast(message, type = 'info') {
             const container = document.getElementById('toast-container');
             const toast = document.createElement('div');
-            let bgClass = type === 'success' ? 'bg-green-500' : type === 'error' ? 'bg-red-500' : 'bg-gray-800';
-            toast.className = `${bgClass} text-white px-6 py-3 rounded-full shadow-lg text-sm font-medium fade-in pointer-events-auto liquid-glass-dark`;
+            
+            let bgClass = 'bg-gray-800 text-white';
+            if (type === 'success') bgClass = 'bg-green-600 text-white';
+            if (type === 'error') bgClass = 'bg-red-600 text-white';
+
+            toast.className = `${bgClass} px-6 py-3 rounded-full shadow-lg text-sm font-medium fade-in pointer-events-auto`;
             toast.textContent = message;
+            
             container.appendChild(toast);
+            
             setTimeout(() => {
                 toast.style.opacity = '0';
-                toast.style.transition = 'opacity 0.3s';
+                toast.style.transform = 'translateY(-10px)';
+                toast.style.transition = 'all 0.3s ease';
                 setTimeout(() => toast.remove(), 300);
             }, 3000);
         }
 
+        // Tab Navigation
         function switchTab(tabId) {
             AppState.currentTab = tabId;
-            const titles = { 'library': 'Library', 'upload': 'Upload Book', 'stats': 'Screen Time' };
+            
+            // Update Headers
+            const titles = { 'library': 'Library', 'upload': 'Upload Book', 'stats': 'Reading Stats' };
             document.getElementById('header-title').textContent = titles[tabId];
 
+            // Toggle Content
             document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
             document.getElementById(`tab-${tabId}`).classList.remove('hidden');
             document.getElementById(`tab-${tabId}`).classList.add('fade-in');
 
-            document.querySelectorAll('.nav-btn i').forEach(icon => {
+            // Update Nav Icons
+            const icons = document.querySelectorAll('.nav-btn i');
+            icons.forEach(icon => {
                 icon.classList.remove('ph-fill', 'text-blue-600');
                 icon.classList.add('ph', 'text-gray-400');
             });
+            const textSpans = document.querySelectorAll('.nav-btn span');
+            textSpans.forEach(span => span.classList.remove('text-blue-600'));
+
+            // Set Active
             const activeBtn = document.querySelector(`[onclick="switchTab('${tabId}')"]`);
             if (activeBtn) {
                 const activeIcon = activeBtn.querySelector('i');
                 activeIcon.classList.remove('ph');
                 activeIcon.classList.add('ph-fill', 'text-blue-600');
+                activeBtn.querySelector('span').classList.add('text-blue-600');
             }
         }
 
-        // --- Library & File Management ---
+        // Library Management
         async function loadLibrary() {
-            const keys = await db.keys();
-            AppState.library = [];
-            for (let key of keys) {
-                if (key.startsWith('meta_') || key.startsWith('folder_')) {
-                    AppState.library.push(await db.getItem(key));
+            try {
+                const keys = await db.keys();
+                AppState.library = [];
+                for (let key of keys) {
+                    if (key.startsWith('meta_')) {
+                        const meta = await db.getItem(key);
+                        AppState.library.push(meta);
+                    }
                 }
+                // Sort by added date
+                AppState.library.sort((a, b) => b.addedAt - a.addedAt);
+            } catch (err) {
+                console.error("Error loading library:", err);
             }
-            AppState.library.sort((a, b) => b.addedAt - a.addedAt);
         }
 
         function renderLibrary() {
             const grid = document.getElementById('library-grid');
             grid.innerHTML = '';
             
-            const folderPathUI = document.getElementById('folder-path');
-            if (AppState.currentFolder) {
-                folderPathUI.classList.remove('hidden');
-                folderPathUI.innerHTML = `<i class="ph ph-caret-left"></i> Root / ${AppState.currentFolder}`;
-            } else {
-                folderPathUI.classList.add('hidden');
-            }
-
-            const itemsToShow = AppState.library.filter(item => 
-                (item.folder || null) === AppState.currentFolder
-            );
-
-            if (itemsToShow.length === 0) {
-                grid.innerHTML = `<div class="col-span-full text-center text-gray-500 mt-10">Folder is empty.</div>`;
+            if (AppState.library.length === 0) {
+                grid.innerHTML = `<div class="col-span-full text-center text-gray-500 mt-10">Library is empty.</div>`;
                 return;
             }
 
-            itemsToShow.forEach(item => {
+            AppState.library.forEach(book => {
                 const card = document.createElement('div');
-                card.className = "flex flex-col gap-2 relative fade-in group";
+                card.className = "flex flex-col gap-2 cursor-pointer fade-in";
+                card.onclick = () => openReader(book.id);
                 
-                if (item.type === 'folder') {
-                    card.innerHTML = `
-                        <div class="relative w-full rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center cursor-pointer book-cover" onclick="navigateToFolder('${item.id}')">
-                            <i class="ph-fill ph-folder text-blue-400 text-6xl"></i>
-                        </div>
-                        <div class="px-1 flex justify-between items-center">
-                            <h4 class="font-semibold text-sm truncate text-gray-900">${item.title}</h4>
-                            <button onclick="openContextMenu(event, '${item.id}')" class="text-gray-400 p-1"><i class="ph-bold ph-dots-three-vertical"></i></button>
-                        </div>
-                    `;
-                } else {
-                    const cover = item.cover || 'https://placehold.co/400x600/e2e8f0/475569?text=No+Cover';
-                    card.innerHTML = `
-                        <div class="relative w-full rounded-lg overflow-hidden book-cover bg-gray-200 cursor-pointer" onclick="openReader('${item.id}')">
-                            <img src="${cover}" class="w-full h-full object-cover">
-                        </div>
-                        <div class="px-1 flex justify-between items-start mt-1">
-                            <div class="w-[80%]">
-                                <h4 class="font-semibold text-sm truncate text-gray-900">${item.title}</h4>
-                                <p class="text-xs text-gray-500 truncate">${item.author}</p>
-                            </div>
-                            <button onclick="openContextMenu(event, '${item.id}')" class="text-gray-400 p-1"><i class="ph-bold ph-dots-three-vertical"></i></button>
-                        </div>
-                    `;
-                }
+                const cover = book.cover ? book.cover : 'https://placehold.co/400x600/e2e8f0/475569?text=No+Cover';
+                
+                card.innerHTML = `
+                    <div class="relative w-full rounded-md overflow-hidden book-cover bg-gray-200">
+                        <img src="${cover}" class="w-full h-full object-cover" alt="Cover of ${book.title}" onerror="this.src='https://placehold.co/400x600/e2e8f0/475569?text=Cover+Error'">
+                        <div class="absolute inset-0 bg-black/5 hover:bg-transparent transition-colors duration-300"></div>
+                    </div>
+                    <div class="px-1">
+                        <h4 class="font-semibold text-sm truncate text-gray-900">${book.title || 'Unknown Title'}</h4>
+                        <p class="text-xs text-gray-500 truncate">${book.author || 'Unknown Author'}</p>
+                    </div>
+                `;
                 grid.appendChild(card);
             });
         }
 
-        async function createNewFolder() {
-            const name = prompt("Enter folder name:");
-            if (!name) return;
-            const folderId = 'folder_' + Date.now();
-            await db.setItem(folderId, { id: folderId, title: name, type: 'folder', folder: AppState.currentFolder, addedAt: Date.now() });
-            loadLibrary().then(renderLibrary);
-        }
+        // File Upload Handling
+        const fileInput = document.getElementById('file-input');
+        const dropZone = document.getElementById('drop-zone');
 
-        function navigateToFolder(folderId) {
-            AppState.currentFolder = folderId;
-            renderLibrary();
-        }
-
-        // --- Context Menu Actions ---
-        function openContextMenu(e, id) {
-            e.stopPropagation();
-            AppState.contextMenuTarget = id;
-            const menu = document.getElementById('context-menu');
-            menu.style.display = 'block';
-            menu.style.left = Math.min(e.pageX, window.innerWidth - 180) + 'px';
-            menu.style.top = e.pageY + 'px';
-        }
-
-        document.addEventListener('click', () => {
-            document.getElementById('context-menu').style.display = 'none';
+        fileInput.addEventListener('change', handleFiles);
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('border-blue-500', 'bg-blue-50');
+        });
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('border-blue-500', 'bg-blue-50');
+        });
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('border-blue-500', 'bg-blue-50');
+            handleFiles({ target: { files: e.dataTransfer.files } });
         });
 
-        async function handleAction(action) {
-            const id = AppState.contextMenuTarget;
-            const itemKey = id.startsWith('folder_') ? id : 'meta_' + id;
-            const item = await db.getItem(itemKey);
-
-            if (action === 'rename') {
-                const newName = prompt("New name:", item.title);
-                if (newName) {
-                    item.title = newName;
-                    await db.setItem(itemKey, item);
-                    loadLibrary().then(renderLibrary);
-                }
-            } else if (action === 'delete') {
-                if (confirm(`Delete ${item.title}?`)) {
-                    await db.removeItem(itemKey);
-                    if (!id.startsWith('folder_')) await db.removeItem(id);
-                    loadLibrary().then(renderLibrary);
-                }
-            } else if (action === 'move') {
-                const target = prompt("Enter target folder name (or leave blank for root):");
-                if (target === null) return;
-                let folderId = null;
-                if (target.trim() !== '') {
-                    const folder = AppState.library.find(f => f.type === 'folder' && f.title.toLowerCase() === target.toLowerCase());
-                    if (folder) folderId = folder.id;
-                    else { showToast("Folder not found", "error"); return; }
-                }
-                item.folder = folderId;
-                await db.setItem(itemKey, item);
-                loadLibrary().then(renderLibrary);
-            } else if (action === 'share') {
-                if (navigator.share && !id.startsWith('folder_')) {
-                    const fileData = await db.getItem(id);
-                    const file = new File([fileData], `${item.title}.epub`, { type: 'application/epub+zip' });
-                    navigator.share({ title: item.title, files: [file] }).catch(console.error);
-                } else {
-                    showToast("Sharing not supported or invalid item", "error");
-                }
-            }
-        }
-
-        // --- EPUB Handling ---
-        const fileInput = document.getElementById('file-input');
-        fileInput.addEventListener('change', async (e) => {
-            const file = e.target.files[0];
+        async function handleFiles(event) {
+            const file = event.target.files[0];
             if (!file) return;
+            if (file.name.split('.').pop().toLowerCase() !== 'epub') {
+                showToast("Please upload a valid EPUB file", 'error');
+                return;
+            }
+
+            showToast("Processing book...", 'info');
             
-            showToast("Processing...");
             try {
                 const arrayBuffer = await file.arrayBuffer();
                 const book = ePub(arrayBuffer);
+                
                 await book.ready;
                 
-                let meta = book.package.metadata;
-                const bookId = 'book_' + Date.now();
+                let title = "Unknown Title";
+                let author = "Unknown Author";
                 let coverUrl = null;
-                try { coverUrl = await book.coverUrl(); } catch(e){}
 
-                const bookMeta = {
+                if (book.package && book.package.metadata) {
+                    title = book.package.metadata.title || title;
+                    author = book.package.metadata.creator || author;
+                }
+
+                try {
+                     const coverUrlBlob = await book.coverUrl();
+                     if(coverUrlBlob) {
+                        coverUrl = coverUrlBlob;
+                     }
+                } catch(e) { console.log("Cover extraction failed", e); }
+
+                const bookId = 'book_' + Date.now();
+                
+                const meta = {
                     id: bookId,
-                    title: meta.title || file.name,
-                    author: meta.creator || "Unknown",
+                    title: title,
+                    author: author,
                     cover: coverUrl,
-                    addedAt: Date.now(),
-                    folder: AppState.currentFolder,
-                    type: 'book'
+                    addedAt: Date.now()
                 };
 
+                // Store file and metadata
                 await db.setItem(bookId, arrayBuffer);
-                await db.setItem('meta_' + bookId, bookMeta);
+                await db.setItem('meta_' + bookId, meta);
                 
-                showToast("Added to library!", 'success');
+                showToast("Book added successfully!", 'success');
+                
                 await loadLibrary();
                 renderLibrary();
                 switchTab('library');
-            } catch (err) {
-                showToast("Failed to process file.", 'error');
-            }
-        });
+                
+                // Reset input
+                fileInput.value = '';
 
+            } catch (err) {
+                console.error(err);
+                showToast("Failed to process EPUB. It might be corrupted.", 'error');
+            }
+        }
+
+        // Mock Data
+        async function injectMockBooks() {
+            showToast("Loading demo books...", "info");
+            
+            const mocks = [
+                { id: 'mock_1', title: 'Shadow Slave - Volume 1', author: 'Guiltythree', cover: 'https://placehold.co/400x600/1e293b/f8fafc?text=Shadow+Slave' },
+                { id: 'mock_2', title: 'Pathology & Pharmacology Viva Notes', author: 'Medical Faculty', cover: 'https://placehold.co/400x600/0284c7/f0f9ff?text=Pathology\nNotes' },
+                { id: 'mock_3', title: 'The Pragmatic Programmer', author: 'David Thomas', cover: 'https://placehold.co/400x600/475569/ffffff?text=Pragmatic\nProgrammer' }
+            ];
+
+            for (let m of mocks) {
+                m.addedAt = Date.now() - Math.random() * 1000000;
+                await db.setItem('meta_' + m.id, m);
+                // We don't store array buffer for mocks. Reader will show a notice if opened.
+            }
+            AppState.mockDataLoaded = true;
+            await loadLibrary();
+        }
+
+        // Reader Logic
         async function openReader(bookId) {
-            document.getElementById('viewer').innerHTML = '';
+            const viewer = document.getElementById('viewer');
+            viewer.innerHTML = ''; // Clear previous
+            
             const arrayBuffer = await db.getItem(bookId);
             const meta = await db.getItem('meta_' + bookId);
-            document.getElementById('reader-title').textContent = meta.title;
+            
+            document.getElementById('reader-title').textContent = meta ? meta.title : 'Reading';
+            
+            // Show reader view
             document.getElementById('reader-view').classList.remove('hidden');
+            
+            if (!arrayBuffer) {
+                viewer.innerHTML = `<div class="flex h-full items-center justify-center text-center p-6 text-gray-500">
+                    <div>
+                        <i class="ph ph-warning-circle text-4xl mb-2"></i>
+                        <p>This is a mock entry. Please upload a real EPUB file to read.</p>
+                    </div>
+                </div>`;
+                return;
+            }
 
             try {
                 currentBook = ePub(arrayBuffer);
                 renderBook();
-            } catch (err) { closeReader(); }
+            } catch (err) {
+                console.error(err);
+                showToast("Error loading book.", 'error');
+                closeReader();
+            }
         }
 
         function renderBook() {
             if(!currentBook) return;
-            if(rendition) rendition.destroy();
+            
+            const viewer = document.getElementById('viewer');
+            viewer.innerHTML = '';
 
-            rendition = currentBook.renderTo(document.getElementById('viewer'), {
-                width: "100%", height: "100%", manager: "default", flow: "paginated"
+            // Clean up previous rendition if exists
+            if(rendition) {
+                rendition.destroy();
+            }
+
+            rendition = currentBook.renderTo(viewer, {
+                width: "100%",
+                height: "100%",
+                spread: "none",
+                manager: ReaderSettings.flow === 'paginated' ? "default" : "continuous",
+                flow: ReaderSettings.flow === 'paginated' ? "paginated" : "scrolled"
             });
 
-            // Inject Custom Font if available
-            rendition.hooks.content.register((contents) => {
-                if (AppState.customFontUrl) {
-                    contents.addStylesheetRules([
-                        `@font-face {
-                            font-family: 'CustomReaderFont';
-                            src: url('${AppState.customFontUrl}');
-                        }`,
-                        `body { font-family: 'CustomReaderFont' !important; }`
-                    ]);
-                }
-            });
-
+            // Register custom themes
             registerThemes();
+            
+            // Apply settings
             rendition.themes.select(ReaderSettings.theme);
-            if(!AppState.customFontFamily) rendition.themes.font(ReaderSettings.fontFamily);
             rendition.themes.fontSize(`${ReaderSettings.fontSize}px`);
+            rendition.themes.font(ReaderSettings.fontFamily);
+            
+            // Note: Epub.js CSS injection for margin/lineHeight can be tricky. 
+            // We do it via theme overrides.
             
             rendition.display();
+            
+            // Add event listeners for touch/click in the frame if paginated
+            rendition.on('keyup', (e) => {
+                if (e.keyCode === 37) prevPage();
+                if (e.keyCode === 39) nextPage();
+            });
 
             rendition.on('click', (e) => {
+                const width = window.innerWidth;
+                // Support both mouse clicks and touch taps
                 const x = e.clientX || (e.changedTouches && e.changedTouches[0].clientX);
+                
                 if (x !== undefined) {
-                    if (x < window.innerWidth * 0.25) rendition.prev();
-                    else if (x > window.innerWidth * 0.75) rendition.next();
-                    else toggleReaderUI();
+                    if (x < width * 0.25) {
+                        if (ReaderSettings.flow === 'paginated') prevPage();
+                    } else if (x > width * 0.75) {
+                        if (ReaderSettings.flow === 'paginated') nextPage();
+                    } else {
+                        toggleReaderUI();
+                    }
                 }
+            });
+
+            // Handle progress (simplified for this demo)
+            rendition.on('relocated', (location) => {
+                // In a real app, calculate real progress using book.locations
+                // This is a placeholder visual update
+                 document.getElementById('progress-text').textContent = "...";
             });
         }
 
-        // --- Custom Font Importing ---
-        function importCustomFont(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-            
-            if(AppState.customFontUrl) URL.revokeObjectURL(AppState.customFontUrl);
-            AppState.customFontUrl = URL.createObjectURL(file);
-            AppState.customFontFamily = 'CustomReaderFont';
-            
-            showToast("Font imported successfully", "success");
-            
-            document.querySelectorAll('.segmented-btn').forEach(btn => btn.classList.remove('active'));
-            document.getElementById('btn-font-custom').classList.add('active');
-            
-            if(rendition) renderBook(); // Rerender to inject the font hook
-        }
-
-        // --- Styling & Settings ---
         function registerThemes() {
             if(!rendition) return;
             const themes = {
-                light: { body: { background: 'transparent', color: '#000000', padding: `0 ${ReaderSettings.margin}px !important` } },
-                sepia: { body: { background: 'transparent', color: '#5F4B32', padding: `0 ${ReaderSettings.margin}px !important` } },
-                dark:  { body: { background: 'transparent', color: '#E5E5EA', padding: `0 ${ReaderSettings.margin}px !important` } }
+                light: { body: { background: '#FFFFFF', color: '#000000' } },
+                sepia: { body: { background: '#FBF0D9', color: '#5F4B32' } },
+                dark:  { body: { background: '#1C1C1E', color: '#E5E5EA' } },
+                oled:  { body: { background: '#000000', color: '#B0B0B0' } }
             };
-            for (const [key, value] of Object.entries(themes)) rendition.themes.register(key, value);
+
+            for (const [key, value] of Object.entries(themes)) {
+                // Merge layout settings into theme
+                value.body['padding'] = `0 ${ReaderSettings.margin}px !important`;
+                value.body['line-height'] = `${ReaderSettings.lineHeight} !important`;
+                rendition.themes.register(key, value);
+            }
         }
 
         function applySetting(key, value) {
@@ -608,118 +684,176 @@
             if (key === 'theme') {
                 applyThemeClasses(value);
                 if (rendition) rendition.themes.select(value);
+                
+                // Update UI buttons
+                ['light', 'sepia', 'dark', 'oled'].forEach(t => {
+                    const btn = document.getElementById(`btn-theme-${t}`);
+                    if(t === value) btn.classList.add('ring-blue-500');
+                    else btn.classList.remove('ring-blue-500');
+                });
             }
-            if (key === 'fontSize' && rendition) rendition.themes.fontSize(`${value}px`);
+            
+            if (key === 'fontSize' && rendition) {
+                rendition.themes.fontSize(`${value}px`);
+            }
+            
             if (key === 'fontFamily') {
-                AppState.customFontFamily = null;
                 if (rendition) rendition.themes.font(value);
-                document.querySelectorAll('.segmented-btn').forEach(btn => btn.classList.remove('active'));
-                if(value.includes('sans')) document.getElementById('btn-font-sans').classList.add('active');
-                if(value.includes('serif')) document.getElementById('btn-font-serif').classList.add('active');
+                // Update segmented control
+                ['serif', 'sans', 'mono'].forEach(t => {
+                    const btn = document.getElementById(`btn-font-${t}`);
+                    if(value.includes(t)) btn.classList.add('active');
+                    else btn.classList.remove('active');
+                });
             }
-            if (key === 'margin' && rendition) {
-                registerThemes();
-                rendition.themes.select(ReaderSettings.theme);
+
+            if (key === 'margin' || key === 'lineHeight') {
+                 // Re-register themes to update padding/line-height and reselect
+                 if (rendition) {
+                    registerThemes();
+                    rendition.themes.select(ReaderSettings.theme);
+                 }
+            }
+
+            if (key === 'flow') {
+                // Update segmented control
+                ['paginated', 'scrolled'].forEach(t => {
+                    const btn = document.getElementById(`btn-flow-${t}`);
+                    if(t === value) btn.classList.add('active');
+                    else btn.classList.remove('active');
+                });
+                
+                // Flow requires re-render in epub.js
+                if(currentBook) renderBook();
             }
         }
 
         function applyThemeClasses(theme) {
-            const rv = document.getElementById('reader-view');
-            const h = document.getElementById('reader-header');
-            const f = document.getElementById('reader-footer');
+            const readerView = document.getElementById('reader-view');
+            const header = document.getElementById('reader-header');
+            const footer = document.getElementById('reader-footer');
             const texts = document.querySelectorAll('.reader-control-text');
 
-            rv.className = 'fixed inset-0 z-50 flex flex-col transition-colors duration-300 ' + 
-                (theme === 'light' ? 'bg-white' : theme === 'sepia' ? 'bg-[#FBF0D9]' : 'bg-[#1C1C1E]');
+            // Reset classes
+            readerView.className = 'fixed inset-0 z-50 flex flex-col transition-colors duration-300';
             
-            const glassClass = theme === 'dark' ? 'liquid-glass-dark' : 'liquid-glass';
-            h.className = `${glassClass} absolute top-0 w-full z-10 flex items-center justify-between px-4 py-3 transform transition-transform duration-300`;
-            f.className = `${glassClass} absolute bottom-0 w-full z-10 px-6 py-4 pb-safe-bottom transform transition-transform duration-300 flex items-center gap-4`;
-            
-            texts.forEach(el => {
-                el.classList.remove('text-gray-800', 'text-[#5F4B32]', 'text-gray-200');
-                el.classList.add(theme === 'light' ? 'text-gray-800' : theme === 'sepia' ? 'text-[#5F4B32]' : 'text-gray-200');
-            });
+            if (theme === 'light') {
+                readerView.classList.add('bg-white');
+                header.className = 'glass absolute top-0 w-full z-10 flex items-center justify-between px-4 py-3 transform transition-transform duration-300';
+                footer.className = 'glass absolute bottom-0 w-full z-10 px-6 py-4 pb-safe-bottom transform transition-transform duration-300 flex items-center gap-4';
+                texts.forEach(el => el.classList.remove('text-gray-200', 'text-[#5F4B32]'));
+                texts.forEach(el => el.classList.add('text-gray-800'));
+            } else if (theme === 'sepia') {
+                readerView.classList.add('bg-[#FBF0D9]');
+                header.className = 'absolute top-0 w-full z-10 flex items-center justify-between px-4 py-3 transform transition-transform duration-300 bg-[#FBF0D9]/90 backdrop-blur-md border-b border-[#D5C3A5]';
+                footer.className = 'absolute bottom-0 w-full z-10 px-6 py-4 pb-safe-bottom transform transition-transform duration-300 flex items-center gap-4 bg-[#FBF0D9]/90 backdrop-blur-md border-t border-[#D5C3A5]';
+                texts.forEach(el => el.classList.remove('text-gray-800', 'text-gray-200'));
+                texts.forEach(el => el.classList.add('text-[#5F4B32]'));
+            } else if (theme === 'dark' || theme === 'oled') {
+                readerView.classList.add(theme === 'dark' ? 'bg-[#1C1C1E]' : 'bg-black');
+                header.className = 'glass-dark absolute top-0 w-full z-10 flex items-center justify-between px-4 py-3 transform transition-transform duration-300';
+                footer.className = 'glass-dark absolute bottom-0 w-full z-10 px-6 py-4 pb-safe-bottom transform transition-transform duration-300 flex items-center gap-4';
+                texts.forEach(el => el.classList.remove('text-gray-800', 'text-[#5F4B32]'));
+                texts.forEach(el => el.classList.add('text-gray-200'));
+            }
         }
 
+        // Reader Interactions
+        function prevPage() { if(rendition && ReaderSettings.flow === 'paginated') rendition.prev(); }
+        function nextPage() { if(rendition && ReaderSettings.flow === 'paginated') rendition.next(); }
+        
         function toggleReaderUI() {
             readerUIVisible = !readerUIVisible;
-            document.getElementById('reader-header').style.transform = readerUIVisible ? 'translateY(0)' : 'translateY(-100%)';
-            document.getElementById('reader-footer').style.transform = readerUIVisible ? 'translateY(0)' : 'translateY(100%)';
-            document.getElementById('settings-menu').classList.add('hidden');
+            const header = document.getElementById('reader-header');
+            const footer = document.getElementById('reader-footer');
+            
+            if (readerUIVisible) {
+                header.style.transform = 'translateY(0)';
+                footer.style.transform = 'translateY(0)';
+            } else {
+                header.style.transform = 'translateY(-100%)';
+                footer.style.transform = 'translateY(100%)';
+                // close settings if open
+                document.getElementById('settings-menu').classList.add('hidden');
+            }
         }
 
-        function toggleSettings() { document.getElementById('settings-menu').classList.toggle('hidden'); }
+        function toggleSettings() {
+            const menu = document.getElementById('settings-menu');
+            menu.classList.toggle('hidden');
+        }
+
         function closeReader() {
             document.getElementById('reader-view').classList.add('hidden');
-            if (rendition) { rendition.destroy(); rendition = null; }
+            document.getElementById('settings-menu').classList.add('hidden');
+            if (rendition) {
+                rendition.destroy();
+                rendition = null;
+            }
             currentBook = null;
         }
 
-        // --- Screen Time Style Charts ---
+        // Charts Initialization
         function initCharts() {
-            Chart.defaults.font.family = '-apple-system, system-ui, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
-            
-            // Hourly Average Chart
-            const ctxHourly = document.getElementById('hourlyChart').getContext('2d');
-            const gradientHourly = ctxHourly.createLinearGradient(0, 0, 0, 400);
-            gradientHourly.addColorStop(0, '#34C759');
-            gradientHourly.addColorStop(1, 'rgba(52, 199, 89, 0.2)');
-
-            new Chart(ctxHourly, {
+            const ctxBar = document.getElementById('barChart').getContext('2d');
+            new Chart(ctxBar, {
                 type: 'bar',
                 data: {
-                    labels: ['12 AM', '3 AM', '6 AM', '9 AM', '12 PM', '3 PM', '6 PM', '9 PM'],
+                    labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
                     datasets: [{
-                        data: [10, 0, 5, 20, 15, 30, 45, 60],
-                        backgroundColor: gradientHourly,
-                        borderRadius: 10,
-                        barPercentage: 0.6,
-                        borderSkipped: false
+                        label: 'Pages Read',
+                        data: [45, 60, 30, 90, 120, 200, 150],
+                        backgroundColor: '#007AFF',
+                        borderRadius: 4
                     }]
                 },
                 options: {
-                    responsive: true, maintainAspectRatio: false,
-                    plugins: { legend: { display: false }, tooltip: { enabled: false } },
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
                     scales: {
-                        y: { display: false, beginAtZero: true },
-                        x: { grid: { display: false }, border: { display: false }, ticks: { color: '#8E8E93', font: { size: 10 } } }
+                        y: { beginAtZero: true, grid: { display: false } },
+                        x: { grid: { display: false } }
                     }
                 }
             });
 
-            // Yearly Chart (Mock Data 12 months)
-            const ctxYearly = document.getElementById('yearlyChart').getContext('2d');
-            const gradientYearly = ctxYearly.createLinearGradient(0, 0, 0, 400);
-            gradientYearly.addColorStop(0, '#007AFF');
-            gradientYearly.addColorStop(1, '#5AC8FA');
-
-            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-            const readData = Array.from({length: 12}, () => Math.floor(Math.random() * 50) + 10);
-
-            new Chart(ctxYearly, {
-                type: 'bar',
+            const ctxDoughnut = document.getElementById('doughnutChart').getContext('2d');
+            new Chart(ctxDoughnut, {
+                type: 'doughnut',
                 data: {
-                    labels: months,
+                    labels: ['Fiction', 'Academic', 'Non-Fiction'],
                     datasets: [{
-                        data: readData,
-                        backgroundColor: gradientYearly,
-                        borderRadius: 6,
-                        borderSkipped: false
+                        data: [65, 25, 10],
+                        backgroundColor: ['#007AFF', '#34C759', '#FF9500'],
+                        borderWidth: 0
                     }]
                 },
                 options: {
-                    responsive: true, maintainAspectRatio: false,
-                    plugins: { legend: { display: false } },
-                    scales: {
-                        y: { display: false, beginAtZero: true },
-                        x: { grid: { display: false }, border: { display: false }, ticks: { color: '#8E8E93', maxRotation: 0, font: { size: 10 } } }
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    cutout: '75%',
+                    plugins: {
+                        legend: { position: 'bottom' }
                     }
                 }
             });
         }
 
+        // Close settings when clicking outside
+        document.addEventListener('click', (e) => {
+            const menu = document.getElementById('settings-menu');
+            if (!menu.classList.contains('hidden')) {
+                // If click is not inside menu and not on the gear button
+                if (!menu.contains(e.target) && !e.target.closest('button[onclick="toggleSettings()"]')) {
+                    menu.classList.add('hidden');
+                }
+            }
+        });
+
+        // Initialize on load
         window.onload = init;
+
     </script>
 </body>
 </html>

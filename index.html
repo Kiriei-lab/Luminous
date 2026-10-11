@@ -1,318 +1,725 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>Lumina Reader</title>
-  
-  <!-- iOS PWA Meta Tags -->
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="Lumina">
-  
-  <!-- CDN Scripts: Tailwind, React, Lucide Icons, Babel -->
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-  <script src="https://unpkg.com/lucide@latest"></script>
-  
-  <style>
-    /* Prevent iOS bounce & pull-to-refresh */
-    html, body {
-      overscroll-behavior-y: none;
-      -webkit-tap-highlight-color: transparent;
-      user-select: none;
-      -webkit-user-select: none;
-    }
-    .allow-select {
-      user-select: text;
-      -webkit-user-select: text;
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>Lumina Reader</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/epubjs/dist/epub.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/localforage/1.10.0/localforage.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        :root {
+            --bg-primary: #F2F2F7;
+            --bg-secondary: #FFFFFF;
+            --text-primary: #000000;
+            --text-secondary: #3C3C4399;
+            --accent: #007AFF;
+        }
+
+        body, html {
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            overflow: hidden; /* Fixes bottom/horizontal scrollbars */
+            overscroll-behavior-y: none;
+            -webkit-tap-highlight-color: transparent;
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+        }
+
+        /* Liquid Glass Textures */
+        .glass, .liquid-glass {
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0.2));
+            backdrop-filter: blur(25px) saturate(180%);
+            -webkit-backdrop-filter: blur(25px) saturate(180%);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.4);
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.05), inset 0 1px 2px rgba(255, 255, 255, 0.6);
+        }
+        
+        .glass-dark, .liquid-glass-dark {
+            background: linear-gradient(135deg, rgba(30, 30, 30, 0.6), rgba(15, 15, 15, 0.4));
+            backdrop-filter: blur(30px) saturate(150%);
+            -webkit-backdrop-filter: blur(30px) saturate(150%);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3), inset 0 1px 1px rgba(255, 255, 255, 0.1);
+        }
+
+        .glass-panel {
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.8), rgba(255, 255, 255, 0.6));
+            backdrop-filter: blur(35px) saturate(200%);
+            -webkit-backdrop-filter: blur(35px) saturate(200%);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1), inset 0 2px 4px rgba(255, 255, 255, 0.8);
+        }
+
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 100%;
+            background: transparent;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 24px;
+            width: 24px;
+            border-radius: 50%;
+            background: #ffffff;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.2), 0 0 1px rgba(0,0,0,0.1);
+            cursor: pointer;
+            margin-top: -10px;
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            cursor: pointer;
+            background: rgba(0,0,0,0.15);
+            border-radius: 2px;
+        }
+
+        .book-cover {
+            aspect-ratio: 2 / 3;
+            box-shadow: -4px 0 12px rgba(0,0,0,0.05), 4px 8px 16px rgba(0,0,0,0.1);
+            transition: transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+        }
+        .book-cover:active { transform: scale(0.96); }
+
+        /* Custom Context Menu */
+        .context-menu {
+            display: none;
+            position: absolute;
+            z-index: 100;
+            min-width: 160px;
+        }
+
+        .segmented-control {
+            background: rgba(0,0,0,0.05);
+            border-radius: 8px;
+            padding: 2px;
+            display: flex;
+        }
+        .segmented-btn {
+            flex: 1;
+            text-align: center;
+            padding: 4px 8px;
+            font-size: 13px;
+            font-weight: 500;
+            border-radius: 6px;
+            color: #000;
+            transition: all 0.2s ease;
+        }
+        .segmented-btn.active {
+            background: #fff;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        ::-webkit-scrollbar { display: none; }
+        .epub-container { width: 100%; height: 100%; overflow: hidden; }
+
+        .fade-in { animation: fadeIn 0.3s ease forwards; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    </style>
 </head>
-<body class="bg-[#fbf0d9] overflow-hidden">
-  <div id="root"></div>
+<body class="text-gray-900 select-none flex flex-col w-full h-full">
 
-  <script type="text/babel">
-    const { useState, useEffect, useRef } = React;
-
-    const THEMES = {
-      white: { id: 'white', name: 'Paper White', bg: '#ffffff', text: '#1a1a1a', accent: '#2563eb', navBg: 'rgba(255, 255, 255, 0.95)', border: '#e5e7eb' },
-      sepia: { id: 'sepia', name: 'Warm Sepia', bg: '#fbf0d9', text: '#5f4b32', accent: '#b45309', navBg: 'rgba(251, 240, 217, 0.95)', border: '#eedbc2' },
-      mint: { id: 'mint', name: 'Eye-Care Mint', bg: '#e8f5e9', text: '#1b4332', accent: '#2d6a4f', navBg: 'rgba(232, 245, 233, 0.95)', border: '#c8e6c9' },
-      slate: { id: 'slate', name: 'Slate Gray', bg: '#27272a', text: '#d4d4d8', accent: '#38bdf8', navBg: 'rgba(39, 39, 42, 0.95)', border: '#3f3f46' },
-      oled: { id: 'oled', name: 'OLED Pure Black', bg: '#000000', text: '#9ca3af', accent: '#3b82f6', navBg: 'rgba(0, 0, 0, 0.98)', border: '#1f2937' }
-    };
-
-    const SAMPLE_CHAPTERS = [
-      {
-        id: 1,
-        title: "Chapter 1: The Outskirts of the Forgotten Shore",
-        content: `The pale sun drifted weakly over the jagged horizon. Sunny stared down at the dark, turbulent waters with a grim expression. Survival here was never guaranteed—it was fought for with blood and relentless caution.\n\nHe pulled his threadbare cloak tighter against the biting chill. The shadow stretching out from beneath his boots stirred with a quiet, sentient tremor, mirroring his suppressed vigilance. Every breath felt heavy, burdened by the weight of unspoken dread.\n\n"You are thinking too loudly again," he whispered into the solitude. Only the bitter sea breeze answered, sweeping across the barren rocks with a hollow wail.`
-      },
-      {
-        id: 2,
-        title: "Chapter 2: The Whispering Labyrinth",
-        content: `The ruins rose from the mist like shattered obsidian bones. Ancient runes covered every column, glowing faintly with lingering essence from a forgotten age.\n\nStep by step, he navigated the narrow pathway. A low hum resonated through the stone floor beneath his feet. The labyrinth was alive, shifting in imperceptible cycles to trap wandering souls in its eternal maze.`
-      }
-    ];
-
-    function App() {
-      const [currentView, setCurrentView] = useState('reader');
-      const [theme, setTheme] = useState(THEMES.sepia);
-      const [isMenuOpen, setIsMenuOpen] = useState(false);
-      const [isUiVisible, setIsUiVisible] = useState(false);
-      
-      const [fontSize, setFontSize] = useState(19);
-      const [lineHeight, setLineHeight] = useState(1.8);
-      const [marginWidth, setMarginWidth] = useState(24);
-      const [isTwoPage, setIsTwoPage] = useState(false);
-      const [isScrollMode, setIsScrollMode] = useState(false);
-      const [autoScrollSpeed, setAutoScrollSpeed] = useState(0);
-
-      const [currentChapterIndex, setCurrentChapterIndex] = useState(0);
-      const [currentPage, setCurrentPage] = useState(1);
-      const [totalPages, setTotalPages] = useState(14);
-      const [folders] = useState(['All Books', 'Web Novels', 'Medical Textbooks']);
-      const [selectedFolder, setSelectedFolder] = useState('All Books');
-
-      const scrollRef = useRef(null);
-
-      // Auto-scroll logic
-      useEffect(() => {
-        if (!isScrollMode || autoScrollSpeed === 0) return;
-        const interval = setInterval(() => {
-          if (scrollRef.current) {
-            scrollRef.current.scrollTop += autoScrollSpeed;
-          }
-        }, 30);
-        return () => clearInterval(interval);
-      }, [isScrollMode, autoScrollSpeed]);
-
-      const currentChapter = SAMPLE_CHAPTERS[currentChapterIndex];
-
-      return (
-        <div 
-          className="relative w-screen h-screen overflow-hidden transition-colors duration-300"
-          style={{ backgroundColor: theme.bg, color: theme.text }}
-        >
-          {/* Top Bar */}
-          <header 
-            className={`fixed top-0 left-0 right-0 z-40 flex items-center justify-between px-6 pt-10 pb-4 backdrop-blur-md transition-all duration-300 ${
-              isUiVisible ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-full pointer-events-none'
-            }`}
-            style={{ backgroundColor: theme.navBg, borderBottom: `1px solid ${theme.border}` }}
-          >
-            <button 
-              onClick={() => setCurrentView(currentView === 'reader' ? 'library' : 'reader')}
-              className="px-3 py-1.5 rounded-full text-xs font-semibold tracking-wide border transition active:scale-95"
-              style={{ borderColor: theme.border }}
-            >
-              {currentView === 'reader' ? '← Library' : '← Back'}
-            </button>
-
-            <div className="text-xs font-medium tracking-wide opacity-75 truncate max-w-[200px]">
-              {currentChapter.title}
-            </div>
-
-            <button 
-              onClick={() => setIsMenuOpen(true)}
-              className="px-3 py-1.5 rounded-full text-xs font-semibold tracking-wide border transition active:scale-95"
-              style={{ borderColor: theme.border }}
-            >
-              Aa / Menu
-            </button>
-          </header>
-
-          {/* Reader View */}
-          {currentView === 'reader' ? (
-            <main 
-              ref={scrollRef}
-              onClick={() => setIsUiVisible(!isUiVisible)}
-              className={`w-full h-full cursor-pointer overflow-y-auto px-6 sm:px-12 md:px-20 transition-all ${
-                isScrollMode ? 'pt-24 pb-28' : 'flex items-center justify-center'
-              }`}
-              style={{
-                maxWidth: `${100 - marginWidth * 0.4}%`,
-                margin: '0 auto',
-                fontSize: `${fontSize}px`,
-                lineHeight: lineHeight
-              }}
-            >
-              <div className={`w-full max-w-3xl allow-select ${isTwoPage ? 'grid grid-cols-2 gap-12' : ''}`}>
-                <div>
-                  <h1 className="text-xl font-bold mb-8 opacity-90">{currentChapter.title}</h1>
-                  {currentChapter.content.split('\n\n').map((paragraph, idx) => (
-                    <p key={idx} className="mb-6 indent-6 text-justify">
-                      {paragraph}
-                    </p>
-                  ))}
-                </div>
-
-                {isTwoPage && (
-                  <div className="border-l pl-12" style={{ borderColor: theme.border }}>
-                    <p className="text-justify indent-6">
-                      The path ahead remained shrouded in shadows. He stepped forward with unyielding resolve, knowing the trial had only just begun...
-                    </p>
-                  </div>
-                )}
-              </div>
-            </main>
-          ) : (
-            /* Library View */
-            <div className="w-full h-full overflow-y-auto pt-20 px-8 max-w-4xl mx-auto">
-              <h1 className="text-2xl font-bold mb-6">Library</h1>
-              <div className="flex gap-2 pb-4 overflow-x-auto border-b mb-6" style={{ borderColor: theme.border }}>
-                {folders.map(f => (
-                  <button 
-                    key={f}
-                    onClick={() => setSelectedFolder(f)}
-                    className={`px-4 py-1.5 rounded-full text-xs font-semibold transition ${
-                      selectedFolder === f ? 'bg-amber-600 text-white' : 'opacity-70'
-                    }`}
-                  >
-                    {f}
-                  </button>
-                ))}
-              </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-6">
-                <div 
-                  onClick={() => setCurrentView('reader')}
-                  className="cursor-pointer aspect-[2/3] rounded-xl border p-4 flex flex-col justify-end shadow-md transition active:scale-95"
-                  style={{ backgroundColor: theme.border, borderColor: theme.border }}
-                >
-                  <span className="font-bold text-sm">Shadow Slave</span>
-                  <span className="text-xs opacity-75">Guiltythree</span>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Bottom Page Pill */}
-          {currentView === 'reader' && (
-            <div 
-              className={`fixed bottom-8 left-1/2 -translate-x-1/2 z-40 px-5 py-2 rounded-full shadow-lg backdrop-blur-md border text-xs font-semibold flex items-center gap-4 transition-all duration-300 ${
-                isUiVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6 pointer-events-none'
-              }`}
-              style={{ backgroundColor: theme.navBg, borderColor: theme.border }}
-            >
-              <button 
-                onClick={(e) => { e.stopPropagation(); setCurrentPage(p => Math.max(1, p - 1)); }}
-                className="px-1 active:opacity-50"
-              >
-                ◀
-              </button>
-              <span>Page {currentPage} / {totalPages}</span>
-              <button 
-                onClick={(e) => { e.stopPropagation(); setCurrentPage(p => Math.min(totalPages, p + 1)); }}
-                className="px-1 active:opacity-50"
-              >
-                ▶
-              </button>
-            </div>
-          )}
-
-          {/* Settings Drawer */}
-          {isMenuOpen && (
-            <div className="fixed inset-0 z-50 flex justify-end bg-black/40 backdrop-blur-sm">
-              <div 
-                className="w-full max-w-sm h-full p-6 overflow-y-auto shadow-2xl flex flex-col justify-between"
-                style={{ backgroundColor: theme.bg, color: theme.text, borderLeft: `1px solid ${theme.border}` }}
-              >
-                <div className="space-y-6">
-                  <div className="flex items-center justify-between pb-4 border-b" style={{ borderColor: theme.border }}>
-                    <h2 className="text-lg font-bold">Customization</h2>
-                    <button onClick={() => setIsMenuOpen(false)} className="text-xl font-bold px-2">✕</button>
-                  </div>
-
-                  <div>
-                    <label className="text-xs font-bold uppercase opacity-60 mb-2 block">Themes</label>
-                    <div className="grid grid-cols-5 gap-2">
-                      {Object.values(THEMES).map(t => (
-                        <button
-                          key={t.id}
-                          onClick={() => setTheme(t)}
-                          className={`h-10 rounded-lg border transition ${theme.id === t.id ? 'ring-2 ring-amber-500 scale-105' : ''}`}
-                          style={{ backgroundColor: t.bg, borderColor: t.border }}
-                        />
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="space-y-3">
-                    <div className="flex justify-between text-xs font-semibold">
-                      <span>Font Size</span>
-                      <span>{fontSize}px</span>
-                    </div>
-                    <input 
-                      type="range" min="14" max="32" value={fontSize} 
-                      onChange={e => setFontSize(Number(e.target.value))}
-                      className="w-full accent-amber-600" 
-                    />
-                  </div>
-
-                  <div className="space-y-3">
-                    <div className="flex justify-between text-xs font-semibold">
-                      <span>Line Height</span>
-                      <span>{lineHeight}</span>
-                    </div>
-                    <input 
-                      type="range" min="1.3" max="2.4" step="0.1" value={lineHeight} 
-                      onChange={e => setLineHeight(Number(e.target.value))}
-                      className="w-full accent-amber-600" 
-                    />
-                  </div>
-
-                  <div className="space-y-3 pt-2">
-                    <label className="flex items-center justify-between cursor-pointer">
-                      <span className="text-sm font-medium">Continuous Scroll</span>
-                      <input 
-                        type="checkbox" checked={isScrollMode} 
-                        onChange={e => setIsScrollMode(e.target.checked)}
-                        className="w-5 h-5 accent-amber-600 rounded" 
-                      />
-                    </label>
-
-                    <label className="flex items-center justify-between cursor-pointer">
-                      <span className="text-sm font-medium">2-Page Spread (iPad)</span>
-                      <input 
-                        type="checkbox" checked={isTwoPage} 
-                        onChange={e => setIsTwoPage(e.target.checked)}
-                        className="w-5 h-5 accent-amber-600 rounded" 
-                      />
-                    </label>
-
-                    {isScrollMode && (
-                      <div className="pt-2">
-                        <div className="flex justify-between text-xs font-semibold mb-1">
-                          <span>Auto-Scroll Speed</span>
-                          <span>{autoScrollSpeed === 0 ? 'Off' : `${autoScrollSpeed}x`}</span>
-                        </div>
-                        <input 
-                          type="range" min="0" max="5" value={autoScrollSpeed} 
-                          onChange={e => setAutoScrollSpeed(Number(e.target.value))}
-                          className="w-full accent-amber-600" 
-                        />
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <button 
-                  onClick={() => setIsMenuOpen(false)}
-                  className="w-full py-3 bg-amber-600 text-white font-bold rounded-xl active:scale-95 transition"
-                >
-                  Done
+    <div id="app-view" class="flex flex-col h-full w-full absolute inset-0">
+        <!-- Top App Bar -->
+        <header class="liquid-glass pt-safe-top sticky top-0 z-20 flex justify-between items-center px-6 py-4">
+            <h1 class="text-2xl font-bold tracking-tight text-gray-900" id="header-title">Library</h1>
+            <div class="flex gap-4">
+                <button onclick="createNewFolder()" class="w-8 h-8 rounded-full bg-black/5 flex items-center justify-center text-gray-600 hover:bg-black/10 transition" title="New Folder">
+                    <i class="ph ph-folder-plus text-lg"></i>
                 </button>
-              </div>
             </div>
-          )}
-        </div>
-      );
-    }
+        </header>
 
-    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
-  </script>
+        <!-- Main Content Area -->
+        <main class="flex-1 overflow-y-auto pb-24 px-6 pt-4 w-full" id="main-content">
+            
+            <!-- Library Tab -->
+            <div id="tab-library" class="tab-content w-full h-full">
+                <!-- Breadcrumb -->
+                <div id="folder-path" class="text-sm font-medium text-blue-600 mb-4 cursor-pointer hidden" onclick="navigateToFolder(null)">
+                    <i class="ph ph-caret-left"></i> Back to Root
+                </div>
+                
+                <div id="library-grid" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+                    <!-- Items injected here -->
+                </div>
+            </div>
+
+            <!-- Upload Tab -->
+            <div id="tab-upload" class="tab-content hidden w-full h-full flex flex-col items-center justify-center">
+                <div class="w-full max-w-md">
+                    <div id="drop-zone" class="border-2 border-dashed border-gray-300 rounded-3xl p-12 text-center bg-white/50 backdrop-blur-sm transition-colors duration-200 hover:border-blue-500">
+                        <i class="ph ph-books text-5xl text-gray-400 mb-4"></i>
+                        <h3 class="text-xl font-semibold mb-2">Add to Library</h3>
+                        <p class="text-sm text-gray-500 mb-6">Drag and drop EPUB files</p>
+                        <input type="file" id="file-input" accept=".epub" class="hidden">
+                        <button onclick="document.getElementById('file-input').click()" class="bg-blue-600 text-white font-medium py-3 px-6 rounded-2xl shadow-lg shadow-blue-500/30 hover:bg-blue-700 active:scale-95 transition-all">
+                            Browse Files
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Stats Tab (Apple Screen Time Style) -->
+            <div id="tab-stats" class="tab-content hidden w-full h-full pb-10">
+                <div class="max-w-4xl mx-auto space-y-6">
+                    
+                    <div class="bg-white rounded-3xl p-6 shadow-sm border border-gray-100">
+                        <h2 class="text-2xl font-bold mb-1">Daily Average</h2>
+                        <p class="text-gray-500 mb-6">1h 45m today</p>
+                        <div class="h-48 w-full">
+                            <canvas id="hourlyChart"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="bg-white rounded-3xl p-6 shadow-sm border border-gray-100">
+                        <div class="flex justify-between items-center mb-6">
+                            <h2 class="text-xl font-bold">Past Year Reading</h2>
+                            <span class="text-sm text-gray-500 bg-gray-100 px-3 py-1 rounded-full">18 Books</span>
+                        </div>
+                        <div class="h-64 w-full">
+                            <canvas id="yearlyChart"></canvas>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </main>
+
+        <!-- Bottom Navigation -->
+        <nav class="liquid-glass fixed bottom-0 w-full pb-safe-bottom">
+            <div class="flex justify-around items-center px-2 py-2 max-w-md mx-auto">
+                <button onclick="switchTab('library')" class="nav-btn flex flex-col items-center p-2 text-blue-600 transition-colors w-20">
+                    <i class="ph-fill ph-books text-2xl mb-1"></i>
+                    <span class="text-[10px] font-medium">Library</span>
+                </button>
+                <button onclick="switchTab('upload')" class="nav-btn flex flex-col items-center p-2 text-gray-400 hover:text-gray-600 transition-colors w-20">
+                    <i class="ph ph-plus-circle text-2xl mb-1"></i>
+                    <span class="text-[10px] font-medium">Upload</span>
+                </button>
+                <button onclick="switchTab('stats')" class="nav-btn flex flex-col items-center p-2 text-gray-400 hover:text-gray-600 transition-colors w-20">
+                    <i class="ph ph-chart-bar text-2xl mb-1"></i>
+                    <span class="text-[10px] font-medium">Stats</span>
+                </button>
+            </div>
+        </nav>
+    </div>
+
+    <!-- Context Menu -->
+    <div id="context-menu" class="context-menu glass-panel rounded-xl shadow-2xl p-2 text-sm">
+        <button onclick="handleAction('rename')" class="w-full text-left px-3 py-2 hover:bg-black/5 rounded-lg flex items-center gap-2"><i class="ph ph-pencil-simple"></i> Rename</button>
+        <button onclick="handleAction('move')" class="w-full text-left px-3 py-2 hover:bg-black/5 rounded-lg flex items-center gap-2"><i class="ph ph-folder"></i> Move to Folder</button>
+        <button onclick="handleAction('share')" class="w-full text-left px-3 py-2 hover:bg-black/5 rounded-lg flex items-center gap-2"><i class="ph ph-share-network"></i> Share</button>
+        <hr class="my-1 border-gray-200">
+        <button onclick="handleAction('delete')" class="w-full text-left px-3 py-2 text-red-600 hover:bg-red-50 rounded-lg flex items-center gap-2"><i class="ph ph-trash"></i> Delete</button>
+    </div>
+
+    <!-- Reader Overlay View -->
+    <div id="reader-view" class="fixed inset-0 z-50 hidden bg-white theme-light flex flex-col transition-colors duration-300">
+        <div id="reader-header" class="liquid-glass absolute top-0 w-full z-10 flex items-center justify-between px-4 py-3 transform transition-transform duration-300">
+            <button onclick="closeReader()" class="text-gray-600 flex items-center gap-1 active:opacity-50 px-2 py-1 reader-control-text">
+                <i class="ph ph-caret-left text-2xl"></i> <span class="text-lg">Back</span>
+            </button>
+            <h2 id="reader-title" class="font-semibold text-sm truncate max-w-[50%] reader-control-text">Book Title</h2>
+            <button onclick="toggleSettings()" class="text-gray-600 p-2 active:opacity-50 reader-control-text">
+                <i class="ph ph-text-aa text-2xl"></i>
+            </button>
+        </div>
+
+        <div id="viewer" class="epub-container flex-1 mt-0"></div>
+
+        <div id="reader-footer" class="liquid-glass absolute bottom-0 w-full z-10 px-6 py-4 pb-safe-bottom transform transition-transform duration-300 flex items-center gap-4">
+            <span class="text-xs text-gray-500 w-10 text-right reader-control-text" id="progress-text">0%</span>
+            <input type="range" id="progress-slider" min="0" max="100" value="0" class="flex-1">
+        </div>
+
+        <!-- Settings Popover -->
+        <div id="settings-menu" class="hidden absolute top-16 right-4 w-80 glass-panel rounded-3xl p-5 z-20 text-black shadow-2xl">
+            <!-- Theme Selection -->
+            <div class="mb-5 flex gap-3 justify-between">
+                <button onclick="applySetting('theme', 'light')" class="w-10 h-10 rounded-full bg-white shadow flex items-center justify-center ring-2 ring-transparent ring-offset-2" id="btn-theme-light">Aa</button>
+                <button onclick="applySetting('theme', 'sepia')" class="w-10 h-10 rounded-full bg-[#FBF0D9] text-[#5F4B32] shadow flex items-center justify-center ring-2 ring-transparent ring-offset-2" id="btn-theme-sepia">Aa</button>
+                <button onclick="applySetting('theme', 'dark')" class="w-10 h-10 rounded-full bg-[#1C1C1E] text-white shadow flex items-center justify-center ring-2 ring-transparent ring-offset-2" id="btn-theme-dark">Aa</button>
+            </div>
+
+            <hr class="border-black/10 mb-4">
+
+            <!-- Font Setup (Custom Import Included) -->
+            <div class="flex items-center gap-4 mb-4">
+                <i class="ph ph-text-a-small text-xl opacity-50"></i>
+                <input type="range" min="12" max="36" value="18" onchange="applySetting('fontSize', this.value)">
+                <i class="ph ph-text-a-large text-2xl opacity-50"></i>
+            </div>
+
+            <div class="segmented-control mb-3">
+                <button class="segmented-btn active" onclick="applySetting('fontFamily', '-apple-system, sans-serif')" id="btn-font-sans">Sans</button>
+                <button class="segmented-btn font-serif" onclick="applySetting('fontFamily', 'Georgia, serif')" id="btn-font-serif">Serif</button>
+                <button class="segmented-btn" id="btn-font-custom" onclick="document.getElementById('font-input').click()">+ Font</button>
+                <input type="file" id="font-input" accept=".ttf,.woff,.woff2,.otf" class="hidden" onchange="importCustomFont(event)">
+            </div>
+            
+            <hr class="border-black/10 mb-4">
+
+            <!-- Layout -->
+            <div class="space-y-4 mb-4">
+                <div class="flex items-center gap-4">
+                    <i class="ph ph-arrows-in-line-horizontal opacity-50"></i>
+                    <input type="range" min="0" max="100" value="40" step="5" onchange="applySetting('margin', this.value)">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast-container" class="fixed top-10 left-1/2 transform -translate-x-1/2 z-[100] flex flex-col gap-2 pointer-events-none"></div>
+
+    <script>
+        const AppState = {
+            currentTab: 'library',
+            library: [], 
+            currentFolder: null, // null means root
+            contextMenuTarget: null,
+            customFontUrl: null,
+            customFontFamily: null
+        };
+
+        const ReaderSettings = {
+            theme: 'light',
+            fontSize: 18,
+            fontFamily: '-apple-system, sans-serif',
+            margin: 40,
+            lineHeight: 1.5,
+            flow: 'paginated'
+        };
+
+        let currentBook = null;
+        let rendition = null;
+        let readerUIVisible = true;
+
+        const db = localforage.createInstance({ name: "LuminaReader", storeName: "books" });
+
+        async function init() {
+            await loadLibrary();
+            renderLibrary();
+            initCharts();
+            applyThemeClasses(ReaderSettings.theme);
+        }
+
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            let bgClass = type === 'success' ? 'bg-green-500' : type === 'error' ? 'bg-red-500' : 'bg-gray-800';
+            toast.className = `${bgClass} text-white px-6 py-3 rounded-full shadow-lg text-sm font-medium fade-in pointer-events-auto liquid-glass-dark`;
+            toast.textContent = message;
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transition = 'opacity 0.3s';
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        function switchTab(tabId) {
+            AppState.currentTab = tabId;
+            const titles = { 'library': 'Library', 'upload': 'Upload Book', 'stats': 'Screen Time' };
+            document.getElementById('header-title').textContent = titles[tabId];
+
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            document.getElementById(`tab-${tabId}`).classList.remove('hidden');
+            document.getElementById(`tab-${tabId}`).classList.add('fade-in');
+
+            document.querySelectorAll('.nav-btn i').forEach(icon => {
+                icon.classList.remove('ph-fill', 'text-blue-600');
+                icon.classList.add('ph', 'text-gray-400');
+            });
+            const activeBtn = document.querySelector(`[onclick="switchTab('${tabId}')"]`);
+            if (activeBtn) {
+                const activeIcon = activeBtn.querySelector('i');
+                activeIcon.classList.remove('ph');
+                activeIcon.classList.add('ph-fill', 'text-blue-600');
+            }
+        }
+
+        // --- Library & File Management ---
+        async function loadLibrary() {
+            const keys = await db.keys();
+            AppState.library = [];
+            for (let key of keys) {
+                if (key.startsWith('meta_') || key.startsWith('folder_')) {
+                    AppState.library.push(await db.getItem(key));
+                }
+            }
+            AppState.library.sort((a, b) => b.addedAt - a.addedAt);
+        }
+
+        function renderLibrary() {
+            const grid = document.getElementById('library-grid');
+            grid.innerHTML = '';
+            
+            const folderPathUI = document.getElementById('folder-path');
+            if (AppState.currentFolder) {
+                folderPathUI.classList.remove('hidden');
+                folderPathUI.innerHTML = `<i class="ph ph-caret-left"></i> Root / ${AppState.currentFolder}`;
+            } else {
+                folderPathUI.classList.add('hidden');
+            }
+
+            const itemsToShow = AppState.library.filter(item => 
+                (item.folder || null) === AppState.currentFolder
+            );
+
+            if (itemsToShow.length === 0) {
+                grid.innerHTML = `<div class="col-span-full text-center text-gray-500 mt-10">Folder is empty.</div>`;
+                return;
+            }
+
+            itemsToShow.forEach(item => {
+                const card = document.createElement('div');
+                card.className = "flex flex-col gap-2 relative fade-in group";
+                
+                if (item.type === 'folder') {
+                    card.innerHTML = `
+                        <div class="relative w-full rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center cursor-pointer book-cover" onclick="navigateToFolder('${item.id}')">
+                            <i class="ph-fill ph-folder text-blue-400 text-6xl"></i>
+                        </div>
+                        <div class="px-1 flex justify-between items-center">
+                            <h4 class="font-semibold text-sm truncate text-gray-900">${item.title}</h4>
+                            <button onclick="openContextMenu(event, '${item.id}')" class="text-gray-400 p-1"><i class="ph-bold ph-dots-three-vertical"></i></button>
+                        </div>
+                    `;
+                } else {
+                    const cover = item.cover || 'https://placehold.co/400x600/e2e8f0/475569?text=No+Cover';
+                    card.innerHTML = `
+                        <div class="relative w-full rounded-lg overflow-hidden book-cover bg-gray-200 cursor-pointer" onclick="openReader('${item.id}')">
+                            <img src="${cover}" class="w-full h-full object-cover">
+                        </div>
+                        <div class="px-1 flex justify-between items-start mt-1">
+                            <div class="w-[80%]">
+                                <h4 class="font-semibold text-sm truncate text-gray-900">${item.title}</h4>
+                                <p class="text-xs text-gray-500 truncate">${item.author}</p>
+                            </div>
+                            <button onclick="openContextMenu(event, '${item.id}')" class="text-gray-400 p-1"><i class="ph-bold ph-dots-three-vertical"></i></button>
+                        </div>
+                    `;
+                }
+                grid.appendChild(card);
+            });
+        }
+
+        async function createNewFolder() {
+            const name = prompt("Enter folder name:");
+            if (!name) return;
+            const folderId = 'folder_' + Date.now();
+            await db.setItem(folderId, { id: folderId, title: name, type: 'folder', folder: AppState.currentFolder, addedAt: Date.now() });
+            loadLibrary().then(renderLibrary);
+        }
+
+        function navigateToFolder(folderId) {
+            AppState.currentFolder = folderId;
+            renderLibrary();
+        }
+
+        // --- Context Menu Actions ---
+        function openContextMenu(e, id) {
+            e.stopPropagation();
+            AppState.contextMenuTarget = id;
+            const menu = document.getElementById('context-menu');
+            menu.style.display = 'block';
+            menu.style.left = Math.min(e.pageX, window.innerWidth - 180) + 'px';
+            menu.style.top = e.pageY + 'px';
+        }
+
+        document.addEventListener('click', () => {
+            document.getElementById('context-menu').style.display = 'none';
+        });
+
+        async function handleAction(action) {
+            const id = AppState.contextMenuTarget;
+            const itemKey = id.startsWith('folder_') ? id : 'meta_' + id;
+            const item = await db.getItem(itemKey);
+
+            if (action === 'rename') {
+                const newName = prompt("New name:", item.title);
+                if (newName) {
+                    item.title = newName;
+                    await db.setItem(itemKey, item);
+                    loadLibrary().then(renderLibrary);
+                }
+            } else if (action === 'delete') {
+                if (confirm(`Delete ${item.title}?`)) {
+                    await db.removeItem(itemKey);
+                    if (!id.startsWith('folder_')) await db.removeItem(id);
+                    loadLibrary().then(renderLibrary);
+                }
+            } else if (action === 'move') {
+                const target = prompt("Enter target folder name (or leave blank for root):");
+                if (target === null) return;
+                let folderId = null;
+                if (target.trim() !== '') {
+                    const folder = AppState.library.find(f => f.type === 'folder' && f.title.toLowerCase() === target.toLowerCase());
+                    if (folder) folderId = folder.id;
+                    else { showToast("Folder not found", "error"); return; }
+                }
+                item.folder = folderId;
+                await db.setItem(itemKey, item);
+                loadLibrary().then(renderLibrary);
+            } else if (action === 'share') {
+                if (navigator.share && !id.startsWith('folder_')) {
+                    const fileData = await db.getItem(id);
+                    const file = new File([fileData], `${item.title}.epub`, { type: 'application/epub+zip' });
+                    navigator.share({ title: item.title, files: [file] }).catch(console.error);
+                } else {
+                    showToast("Sharing not supported or invalid item", "error");
+                }
+            }
+        }
+
+        // --- EPUB Handling ---
+        const fileInput = document.getElementById('file-input');
+        fileInput.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            showToast("Processing...");
+            try {
+                const arrayBuffer = await file.arrayBuffer();
+                const book = ePub(arrayBuffer);
+                await book.ready;
+                
+                let meta = book.package.metadata;
+                const bookId = 'book_' + Date.now();
+                let coverUrl = null;
+                try { coverUrl = await book.coverUrl(); } catch(e){}
+
+                const bookMeta = {
+                    id: bookId,
+                    title: meta.title || file.name,
+                    author: meta.creator || "Unknown",
+                    cover: coverUrl,
+                    addedAt: Date.now(),
+                    folder: AppState.currentFolder,
+                    type: 'book'
+                };
+
+                await db.setItem(bookId, arrayBuffer);
+                await db.setItem('meta_' + bookId, bookMeta);
+                
+                showToast("Added to library!", 'success');
+                await loadLibrary();
+                renderLibrary();
+                switchTab('library');
+            } catch (err) {
+                showToast("Failed to process file.", 'error');
+            }
+        });
+
+        async function openReader(bookId) {
+            document.getElementById('viewer').innerHTML = '';
+            const arrayBuffer = await db.getItem(bookId);
+            const meta = await db.getItem('meta_' + bookId);
+            document.getElementById('reader-title').textContent = meta.title;
+            document.getElementById('reader-view').classList.remove('hidden');
+
+            try {
+                currentBook = ePub(arrayBuffer);
+                renderBook();
+            } catch (err) { closeReader(); }
+        }
+
+        function renderBook() {
+            if(!currentBook) return;
+            if(rendition) rendition.destroy();
+
+            rendition = currentBook.renderTo(document.getElementById('viewer'), {
+                width: "100%", height: "100%", manager: "default", flow: "paginated"
+            });
+
+            // Inject Custom Font if available
+            rendition.hooks.content.register((contents) => {
+                if (AppState.customFontUrl) {
+                    contents.addStylesheetRules([
+                        `@font-face {
+                            font-family: 'CustomReaderFont';
+                            src: url('${AppState.customFontUrl}');
+                        }`,
+                        `body { font-family: 'CustomReaderFont' !important; }`
+                    ]);
+                }
+            });
+
+            registerThemes();
+            rendition.themes.select(ReaderSettings.theme);
+            if(!AppState.customFontFamily) rendition.themes.font(ReaderSettings.fontFamily);
+            rendition.themes.fontSize(`${ReaderSettings.fontSize}px`);
+            
+            rendition.display();
+
+            rendition.on('click', (e) => {
+                const x = e.clientX || (e.changedTouches && e.changedTouches[0].clientX);
+                if (x !== undefined) {
+                    if (x < window.innerWidth * 0.25) rendition.prev();
+                    else if (x > window.innerWidth * 0.75) rendition.next();
+                    else toggleReaderUI();
+                }
+            });
+        }
+
+        // --- Custom Font Importing ---
+        function importCustomFont(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            if(AppState.customFontUrl) URL.revokeObjectURL(AppState.customFontUrl);
+            AppState.customFontUrl = URL.createObjectURL(file);
+            AppState.customFontFamily = 'CustomReaderFont';
+            
+            showToast("Font imported successfully", "success");
+            
+            document.querySelectorAll('.segmented-btn').forEach(btn => btn.classList.remove('active'));
+            document.getElementById('btn-font-custom').classList.add('active');
+            
+            if(rendition) renderBook(); // Rerender to inject the font hook
+        }
+
+        // --- Styling & Settings ---
+        function registerThemes() {
+            if(!rendition) return;
+            const themes = {
+                light: { body: { background: 'transparent', color: '#000000', padding: `0 ${ReaderSettings.margin}px !important` } },
+                sepia: { body: { background: 'transparent', color: '#5F4B32', padding: `0 ${ReaderSettings.margin}px !important` } },
+                dark:  { body: { background: 'transparent', color: '#E5E5EA', padding: `0 ${ReaderSettings.margin}px !important` } }
+            };
+            for (const [key, value] of Object.entries(themes)) rendition.themes.register(key, value);
+        }
+
+        function applySetting(key, value) {
+            ReaderSettings[key] = value;
+            
+            if (key === 'theme') {
+                applyThemeClasses(value);
+                if (rendition) rendition.themes.select(value);
+            }
+            if (key === 'fontSize' && rendition) rendition.themes.fontSize(`${value}px`);
+            if (key === 'fontFamily') {
+                AppState.customFontFamily = null;
+                if (rendition) rendition.themes.font(value);
+                document.querySelectorAll('.segmented-btn').forEach(btn => btn.classList.remove('active'));
+                if(value.includes('sans')) document.getElementById('btn-font-sans').classList.add('active');
+                if(value.includes('serif')) document.getElementById('btn-font-serif').classList.add('active');
+            }
+            if (key === 'margin' && rendition) {
+                registerThemes();
+                rendition.themes.select(ReaderSettings.theme);
+            }
+        }
+
+        function applyThemeClasses(theme) {
+            const rv = document.getElementById('reader-view');
+            const h = document.getElementById('reader-header');
+            const f = document.getElementById('reader-footer');
+            const texts = document.querySelectorAll('.reader-control-text');
+
+            rv.className = 'fixed inset-0 z-50 flex flex-col transition-colors duration-300 ' + 
+                (theme === 'light' ? 'bg-white' : theme === 'sepia' ? 'bg-[#FBF0D9]' : 'bg-[#1C1C1E]');
+            
+            const glassClass = theme === 'dark' ? 'liquid-glass-dark' : 'liquid-glass';
+            h.className = `${glassClass} absolute top-0 w-full z-10 flex items-center justify-between px-4 py-3 transform transition-transform duration-300`;
+            f.className = `${glassClass} absolute bottom-0 w-full z-10 px-6 py-4 pb-safe-bottom transform transition-transform duration-300 flex items-center gap-4`;
+            
+            texts.forEach(el => {
+                el.classList.remove('text-gray-800', 'text-[#5F4B32]', 'text-gray-200');
+                el.classList.add(theme === 'light' ? 'text-gray-800' : theme === 'sepia' ? 'text-[#5F4B32]' : 'text-gray-200');
+            });
+        }
+
+        function toggleReaderUI() {
+            readerUIVisible = !readerUIVisible;
+            document.getElementById('reader-header').style.transform = readerUIVisible ? 'translateY(0)' : 'translateY(-100%)';
+            document.getElementById('reader-footer').style.transform = readerUIVisible ? 'translateY(0)' : 'translateY(100%)';
+            document.getElementById('settings-menu').classList.add('hidden');
+        }
+
+        function toggleSettings() { document.getElementById('settings-menu').classList.toggle('hidden'); }
+        function closeReader() {
+            document.getElementById('reader-view').classList.add('hidden');
+            if (rendition) { rendition.destroy(); rendition = null; }
+            currentBook = null;
+        }
+
+        // --- Screen Time Style Charts ---
+        function initCharts() {
+            Chart.defaults.font.family = '-apple-system, system-ui, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
+            
+            // Hourly Average Chart
+            const ctxHourly = document.getElementById('hourlyChart').getContext('2d');
+            const gradientHourly = ctxHourly.createLinearGradient(0, 0, 0, 400);
+            gradientHourly.addColorStop(0, '#34C759');
+            gradientHourly.addColorStop(1, 'rgba(52, 199, 89, 0.2)');
+
+            new Chart(ctxHourly, {
+                type: 'bar',
+                data: {
+                    labels: ['12 AM', '3 AM', '6 AM', '9 AM', '12 PM', '3 PM', '6 PM', '9 PM'],
+                    datasets: [{
+                        data: [10, 0, 5, 20, 15, 30, 45, 60],
+                        backgroundColor: gradientHourly,
+                        borderRadius: 10,
+                        barPercentage: 0.6,
+                        borderSkipped: false
+                    }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { display: false }, tooltip: { enabled: false } },
+                    scales: {
+                        y: { display: false, beginAtZero: true },
+                        x: { grid: { display: false }, border: { display: false }, ticks: { color: '#8E8E93', font: { size: 10 } } }
+                    }
+                }
+            });
+
+            // Yearly Chart (Mock Data 12 months)
+            const ctxYearly = document.getElementById('yearlyChart').getContext('2d');
+            const gradientYearly = ctxYearly.createLinearGradient(0, 0, 0, 400);
+            gradientYearly.addColorStop(0, '#007AFF');
+            gradientYearly.addColorStop(1, '#5AC8FA');
+
+            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            const readData = Array.from({length: 12}, () => Math.floor(Math.random() * 50) + 10);
+
+            new Chart(ctxYearly, {
+                type: 'bar',
+                data: {
+                    labels: months,
+                    datasets: [{
+                        data: readData,
+                        backgroundColor: gradientYearly,
+                        borderRadius: 6,
+                        borderSkipped: false
+                    }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { display: false, beginAtZero: true },
+                        x: { grid: { display: false }, border: { display: false }, ticks: { color: '#8E8E93', maxRotation: 0, font: { size: 10 } } }
+                    }
+                }
+            });
+        }
+
+        window.onload = init;
+    </script>
 </body>
 </html>
